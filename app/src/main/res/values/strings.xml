@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">다람 키보드</string>
+    <string name="ime_name">다람 키보드</string>
+    <string name="settings_title">다람 키보드 설정</string>
+    <string name="subtype_ko">한국어</string>
+    <string name="subtype_en">English (US)</string>
+
+    <string name="pref_haptic_title">키 진동</string>
+    <string name="pref_sound_title">키 소리</string>
+    <string name="pref_theme_title">테마</string>
+    <string name="pref_word_prediction_title">단어 예측</string>
+    <string name="pref_show_hit_targets_title">히트 타겟 시각화</string>
+    <string name="pref_show_hit_targets_summary">각 키의 실제 터치 인식 범위를 화면에 표시합니다</string>
+
+    <string-array name="theme_entries">
+        <item>자동 (시스템)</item>
+        <item>라이트</item>
+        <item>다크</item>
+    </string-array>
+
+    <string-array name="theme_values">
+        <item>auto</item>
+        <item>light</item>
+        <item>dark</item>
+    </string-array>
+</resources>

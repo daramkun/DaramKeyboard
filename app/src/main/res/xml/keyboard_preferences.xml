@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <SwitchPreferenceCompat
+        android:key="haptic_enabled"
+        android:title="@string/pref_haptic_title"
+        android:defaultValue="true" />
+
+    <SwitchPreferenceCompat
+        android:key="sound_enabled"
+        android:title="@string/pref_sound_title"
+        android:defaultValue="false" />
+
+    <ListPreference
+        android:key="theme"
+        android:title="@string/pref_theme_title"
+        android:entries="@array/theme_entries"
+        android:entryValues="@array/theme_values"
+        android:defaultValue="auto" />
+
+    <SwitchPreferenceCompat
+        android:key="word_prediction"
+        android:title="@string/pref_word_prediction_title"
+        android:defaultValue="true" />
+
+    <SwitchPreferenceCompat
+        android:key="show_hit_targets"
+        android:title="@string/pref_show_hit_targets_title"
+        android:summary="@string/pref_show_hit_targets_summary"
+        android:defaultValue="false" />
+
+</PreferenceScreen>

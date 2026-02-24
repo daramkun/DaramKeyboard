@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="keyboard_height">280dp</dimen>
+    <dimen name="toolbar_height">48dp</dimen>
+    <dimen name="candidate_bar_height">44dp</dimen>
+    <dimen name="key_label_size">20sp</dimen>
+    <dimen name="key_secondary_label_size">11sp</dimen>
+    <dimen name="key_padding">2dp</dimen>
+</resources>

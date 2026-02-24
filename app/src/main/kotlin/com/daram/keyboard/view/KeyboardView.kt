@@ -1,0 +1,592 @@
+package com.daram.keyboard.view
+
+import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.Typeface
+import android.os.Handler
+import android.os.Looper
+import android.util.TypedValue
+import android.view.MotionEvent
+import android.view.View
+import android.view.ViewTreeObserver
+import android.view.WindowInsets
+import android.view.inputmethod.InputConnection
+import com.daram.keyboard.hittarget.HitTargetManager
+import com.daram.keyboard.settings.PreferenceManager
+import com.daram.keyboard.input.InputEngine
+import com.daram.keyboard.input.NaratgulInputEngine
+import com.daram.keyboard.input.QwertyInputEngine
+import com.daram.keyboard.layout.EmojiLayout
+import com.daram.keyboard.layout.KeyboardLayout
+import com.daram.keyboard.layout.NaratgulLayout
+import com.daram.keyboard.layout.NumberLayout
+import com.daram.keyboard.layout.QwertyLayout
+import com.daram.keyboard.layout.QwertySymbolLayout
+import com.daram.keyboard.layout.SymbolLayout
+import com.daram.keyboard.model.Key
+import com.daram.keyboard.model.KeyAction
+import com.daram.keyboard.model.KeyStyle
+import com.daram.keyboard.theme.KeyboardTheme
+
+class KeyboardView(
+    context: Context,
+    private var theme: KeyboardTheme,
+    private var inputEngine: InputEngine,
+    private val onLayoutSwitch: (KeyboardLayout) -> Unit,
+    private val onKeyPressed: () -> Unit = {},
+    /** 현재 입력 중인 단어 접두사 (단어 예측용) */
+    private val onComposingChanged: (String) -> Unit = {},
+    /** 스페이스/엔터로 단어가 완전히 확정될 때 */
+    private val onWordCommitted: (String) -> Unit = {}
+) : View(context) {
+
+    private var layout: KeyboardLayout = NaratgulLayout
+    private val hitTargetManager = HitTargetManager()
+
+    var inputConnection: InputConnection? = null
+
+    // Paint (1회 생성)
+    private val backgroundPaint = Paint().apply { style = Paint.Style.FILL }
+    private val keyBackgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val keyActivePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        typeface = Typeface.DEFAULT
+    }
+    private val secondaryLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        typeface = Typeface.DEFAULT
+    }
+
+    private val keyRects = mutableMapOf<String, RectF>()
+
+    // 히트 타겟 시각화
+    private val hitTargetPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 3f
+        color = Color.argb(200, 255, 0, 0)  // 빨간색: 히트 영역 경계
+    }
+    private val visualRectPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 1.5f
+        color = Color.argb(160, 0, 120, 255)  // 파란색: 시각 영역 경계 (비교용)
+    }
+
+    // 터치 상태
+    private var pressedKey: Key? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private var longPressRunnable: Runnable? = null
+    private var isLongPressTriggered = false
+    private val longPressDelayMs = 400L
+
+    // 백스페이스 반복 삭제
+    private var backspaceRepeatRunnable: Runnable? = null
+    private val backspaceRepeatIntervalMs = 50L
+
+    // 이모지 스와이프 감지
+    private var swipeStartX = 0f
+    private var swipeStartY = 0f
+    private var isSwipeCandidate = false
+    private val swipeThresholdPx by lazy { dpToPx(40f) }
+
+    // 현재 입력 중인 단어 버퍼
+    private val currentWordBuffer = StringBuilder()
+
+    // 이전 레이아웃 추적 (기호/숫자/이모지 복귀용)
+    private var prevLayout: KeyboardLayout = NaratgulLayout
+
+    private fun dpToPx(dp: Float) =
+        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, resources.displayMetrics)
+
+    private fun spToPx(sp: Float) =
+        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, sp, resources.displayMetrics)
+
+    private val dividerWidthPx = dpToPx(1f)
+    private val secondaryLabelPaddingPx = dpToPx(3f)
+
+    init {
+        applyTheme(theme)
+        attachEngineCallbacks()
+    }
+
+    /** NaratgulInputEngine에 commit 추적 콜백 연결 */
+    private fun attachEngineCallbacks() {
+        (inputEngine as? NaratgulInputEngine)?.onTextCommitted = { committed ->
+            currentWordBuffer.append(committed)
+        }
+    }
+
+    fun applyTheme(newTheme: KeyboardTheme) {
+        theme = newTheme
+        backgroundPaint.color = theme.backgroundColor
+        keyActivePaint.color = theme.keyPressedBackground
+        labelPaint.textSize = spToPx(theme.keyLabelSizeSp)
+        labelPaint.color = theme.keyLabelColor
+        secondaryLabelPaint.textSize = spToPx(theme.keySecondaryLabelSizeSp)
+        secondaryLabelPaint.color = theme.keySecondaryLabelColor
+        invalidate()
+    }
+
+    fun switchLayout(newLayout: KeyboardLayout, newEngine: InputEngine? = null) {
+        layout = newLayout
+        if (newEngine != null) {
+            inputEngine = newEngine
+            attachEngineCallbacks()
+        }
+        currentWordBuffer.clear()
+        if (width > 0 && height > 0) {
+            calculateKeyRects(width, height - gestureNavBottomPadding)
+        }
+        invalidate()
+    }
+
+    // 제스처 네비게이션 시 추가할 하단 여백 (px)
+    private var gestureNavBottomPadding = 0
+
+    private val globalLayoutListener = ViewTreeObserver.OnGlobalLayoutListener {
+        readNavInsets()
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        viewTreeObserver.addOnGlobalLayoutListener(globalLayoutListener)
+        readNavInsets()
+    }
+
+    override fun onDetachedFromWindow() {
+        viewTreeObserver.removeOnGlobalLayoutListener(globalLayoutListener)
+        super.onDetachedFromWindow()
+    }
+
+    private fun readNavInsets() {
+        val insets = rootWindowInsets ?: return
+        val navBottom = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
+        val tappableBottom = insets.getInsets(WindowInsets.Type.tappableElement()).bottom
+        val systemBottom = insets.getInsets(WindowInsets.Type.systemBars()).bottom
+        val bottomPx = maxOf(navBottom, tappableBottom, systemBottom)
+        if (bottomPx != gestureNavBottomPadding) {
+            gestureNavBottomPadding = bottomPx
+            requestLayout()
+        }
+    }
+
+    fun updateGestureNavPadding(bottomPx: Int) {
+        if (bottomPx != gestureNavBottomPadding) {
+            gestureNavBottomPadding = bottomPx
+            requestLayout()
+        }
+    }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val width = MeasureSpec.getSize(widthMeasureSpec)
+        val resId = resources.getIdentifier("keyboard_height", "dimen", context.packageName)
+        val keyboardHeight = if (resId != 0) resources.getDimensionPixelSize(resId)
+                             else (width * 0.55f).toInt()
+        setMeasuredDimension(width, keyboardHeight + gestureNavBottomPadding)
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        // 키 영역은 gestureNavBottomPadding을 제외한 높이로 계산
+        calculateKeyRects(w, h - gestureNavBottomPadding)
+    }
+
+    private fun calculateKeyRects(totalWidth: Int, totalHeight: Int) {
+        keyRects.clear()
+        val rows = layout.rows
+        val rowHeight = totalHeight.toFloat() / rows.size
+        val startXRatios = layout.rowStartXRatios
+
+        for (rowIdx in rows.indices) {
+            val row = rows[rowIdx]
+            val totalWeight = row.sumOf { it.widthWeight.toDouble() }.toFloat()
+            val startX = startXRatios.getOrElse(rowIdx) { 0f } * totalWidth
+            val pixelsPerWeight = (totalWidth - startX) / totalWeight
+            var x = startX
+            for (key in row) {
+                val keyWidth = key.widthWeight * pixelsPerWeight
+                if (key.id !in keyRects) {
+                    keyRects[key.id] = RectF(
+                        x, rowIdx * rowHeight,
+                        x + keyWidth, rowIdx * rowHeight + rowHeight * key.rowSpan
+                    )
+                }
+                x += keyWidth
+            }
+        }
+
+        val allKeys = layout.rows.flatten().distinctBy { it.id }.filter { it.visible }
+        hitTargetManager.setKeyRects(allKeys, keyRects)
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), backgroundPaint)
+        for (row in layout.rows) {
+            for (key in row) {
+                if (!key.visible) continue
+                keyRects[key.id]?.let { drawKey(canvas, key, it) }
+            }
+        }
+        // 히트 타겟 시각화 오버레이
+        if (PreferenceManager.isShowHitTargetsEnabled(context)) {
+            canvas.save()
+            canvas.clipRect(0f, 0f, width.toFloat(), (height - gestureNavBottomPadding).toFloat())
+            for (row in layout.rows) {
+                for (key in row) {
+                    if (!key.visible) continue
+                    // 파란 테두리: 시각적 키 영역
+                    keyRects[key.id]?.let { visualRect ->
+                        canvas.drawRect(visualRect, visualRectPaint)
+                    }
+                    // 빨간 테두리: 실제 히트 영역 (Voronoi 클리핑 적용)
+                    hitTargetManager.getHitRect(key.id)?.let { hitRect ->
+                        canvas.drawRect(hitRect, hitTargetPaint)
+                    }
+                }
+            }
+            canvas.restore()
+        }
+    }
+
+    private fun isCurrentEmojiCategory(key: Key): Boolean {
+        val emojiLayout = layout as? EmojiLayout ?: return false
+        return key.action is KeyAction.SwitchEmojiCategory &&
+                (key.action as KeyAction.SwitchEmojiCategory).categoryIndex == emojiLayout.categoryIndex
+    }
+
+    /** 숫자/기호/이모지 등 보조 레이아웃 여부 — prevLayout 갱신 대상에서 제외 */
+    private fun isAuxLayout(l: KeyboardLayout) =
+        l == NumberLayout || l is SymbolLayout || l is QwertySymbolLayout || l is EmojiLayout
+
+    /** ReturnToPrev 버튼에 표시할 레이블: 이전 레이아웃이 QWERTY 계열이면 "EN", 나머지는 "한" */
+    private fun returnLabel(): String =
+        if (prevLayout == QwertyLayout || prevLayout is QwertySymbolLayout) "EN" else "한"
+
+    private fun drawKey(canvas: Canvas, key: Key, rect: RectF) {
+        val isPressed = pressedKey?.id == key.id
+        val isActiveCategory = isCurrentEmojiCategory(key)
+
+        keyBackgroundPaint.color = when {
+            isPressed -> theme.keyPressedBackground
+            isActiveCategory -> theme.keyNormalBackground  // 활성 카테고리는 밝게
+            key.style == KeyStyle.NORMAL || key.style == KeyStyle.SPACE -> theme.keyNormalBackground
+            else -> theme.keyFunctionBackground
+        }
+        canvas.drawRect(
+            rect.left + dividerWidthPx, rect.top + dividerWidthPx,
+            rect.right - dividerWidthPx, rect.bottom - dividerWidthPx,
+            keyBackgroundPaint
+        )
+
+        val cx = rect.centerX()
+        val textY = rect.centerY() - (labelPaint.descent() + labelPaint.ascent()) / 2f
+        labelPaint.color = theme.keyLabelColor
+
+        when (key.style) {
+            KeyStyle.BACKSPACE -> canvas.drawText("\u232B", cx, textY, labelPaint)
+            KeyStyle.ENTER -> {
+                // 엔터 아이콘은 1.4배 크게
+                val savedSize = labelPaint.textSize
+                labelPaint.textSize = savedSize * 1.4f
+                val bigTextY = rect.centerY() - (labelPaint.descent() + labelPaint.ascent()) / 2f
+                canvas.drawText("\u21B5", cx, bigTextY, labelPaint)
+                labelPaint.textSize = savedSize
+            }
+            KeyStyle.SPACE -> {
+                // 스페이스 아이콘: 밑줄 바 형태
+                val barY = rect.centerY() + spToPx(theme.keyLabelSizeSp) * 0.1f
+                val barHalfWidth = rect.width() * 0.28f
+                val barHeight = dpToPx(2f)
+                val barPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    style = Paint.Style.FILL
+                    color = labelPaint.color
+                    alpha = 160
+                }
+                canvas.drawRoundRect(
+                    cx - barHalfWidth, barY - barHeight / 2f,
+                    cx + barHalfWidth, barY + barHeight / 2f,
+                    barHeight, barHeight, barPaint
+                )
+            }
+            KeyStyle.RETURN    -> canvas.drawText(returnLabel(), cx, textY, labelPaint)
+            KeyStyle.SHIFT     -> {
+                val shiftState = (inputEngine as? QwertyInputEngine)?.getShiftState()
+                    ?: QwertyInputEngine.ShiftState.OFF
+                val icon = when (shiftState) {
+                    QwertyInputEngine.ShiftState.OFF    -> "\u2191"  // ↑
+                    QwertyInputEngine.ShiftState.ONCE   -> "\u21E7"  // ⇧
+                    QwertyInputEngine.ShiftState.LOCKED -> "\u21EA"  // ⇪
+                }
+                // LOCKED 상태는 강조색
+                if (shiftState == QwertyInputEngine.ShiftState.LOCKED) {
+                    labelPaint.color = theme.keyPressedBackground
+                } else if (shiftState == QwertyInputEngine.ShiftState.ONCE) {
+                    labelPaint.color = theme.keyLabelColor
+                }
+                canvas.drawText(icon, cx, textY, labelPaint)
+                labelPaint.color = theme.keyLabelColor
+            }
+            else -> if (key.primaryLabel.isNotEmpty()) {
+                canvas.drawText(key.primaryLabel, cx, textY, labelPaint)
+            }
+        }
+
+        if (key.secondaryLabel != null) {
+            val showSecondaryOnRight = layout is NaratgulLayout || layout is NumberLayout
+            if (showSecondaryOnRight) {
+                secondaryLabelPaint.textAlign = Paint.Align.RIGHT
+                canvas.drawText(key.secondaryLabel,
+                    rect.right - secondaryLabelPaddingPx,
+                    rect.bottom - secondaryLabelPaddingPx,
+                    secondaryLabelPaint)
+            } else {
+                secondaryLabelPaint.textAlign = Paint.Align.LEFT
+                canvas.drawText(key.secondaryLabel,
+                    rect.left + secondaryLabelPaddingPx,
+                    rect.top + secondaryLabelPaddingPx + spToPx(theme.keySecondaryLabelSizeSp),
+                    secondaryLabelPaint)
+            }
+        }
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                val x = if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN)
+                    event.getX(event.actionIndex) else event.x
+                val y = if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN)
+                    event.getY(event.actionIndex) else event.y
+
+                // 이모지 레이아웃에서 스와이프 감지 초기화
+                if (layout is EmojiLayout) {
+                    swipeStartX = x
+                    swipeStartY = y
+                    isSwipeCandidate = true
+                } else {
+                    isSwipeCandidate = false
+                }
+
+                val key = hitTargetManager.findKeyAt(x, y) ?: return true
+                pressedKey = key
+                isLongPressTriggered = false
+
+                if (key.action is KeyAction.Backspace) {
+                    // 백스페이스: 롱프레스 후 반복 삭제
+                    longPressRunnable = Runnable {
+                        isLongPressTriggered = true
+                        scheduleBackspaceRepeat()
+                    }
+                    handler.postDelayed(longPressRunnable!!, longPressDelayMs)
+                } else if (key.longPressAction != null) {
+                    longPressRunnable = Runnable {
+                        isLongPressTriggered = true
+                        handleKeyAction(key.longPressAction)
+                        pressedKey = null
+                        invalidate()
+                    }
+                    handler.postDelayed(longPressRunnable!!, longPressDelayMs)
+                }
+                invalidate()
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+                longPressRunnable?.let { handler.removeCallbacks(it) }
+                longPressRunnable = null
+                cancelBackspaceRepeat()
+
+                val x = if (event.actionMasked == MotionEvent.ACTION_POINTER_UP)
+                    event.getX(event.actionIndex) else event.x
+                val y = if (event.actionMasked == MotionEvent.ACTION_POINTER_UP)
+                    event.getY(event.actionIndex) else event.y
+
+                // 이모지 스와이프 처리
+                if (isSwipeCandidate && layout is EmojiLayout) {
+                    val dx = x - swipeStartX
+                    val dy = y - swipeStartY
+                    if (Math.abs(dx) > swipeThresholdPx && Math.abs(dx) > Math.abs(dy) * 1.5f) {
+                        val emojiLayout = layout as EmojiLayout
+                        val nextCategory = if (dx < 0) {
+                            (emojiLayout.categoryIndex + 1) % EmojiLayout.CATEGORY_COUNT
+                        } else {
+                            (emojiLayout.categoryIndex - 1 + EmojiLayout.CATEGORY_COUNT) % EmojiLayout.CATEGORY_COUNT
+                        }
+                        onLayoutSwitch(EmojiLayout.of(nextCategory))
+                        pressedKey = null
+                        isSwipeCandidate = false
+                        isLongPressTriggered = false
+                        invalidate()
+                        return true
+                    }
+                }
+                isSwipeCandidate = false
+
+                if (!isLongPressTriggered) {
+                    pressedKey?.let { key ->
+                        // 한글 키 액션이면 자소를 먼저 처리한 뒤 lastInputJamo를 읽어야 하므로
+                        // handleKeyAction 전에 임시로 action을 확인, TypeHangul이면 처리 후 jamo를 획득
+                        val naratgulEngine = inputEngine as? NaratgulInputEngine
+                        if (key.action is KeyAction.TypeHangul && naratgulEngine != null) {
+                            handleKeyAction(key.action)
+                            // 처리 후 실제 반영된 자소를 히트 타겟에 기록
+                            hitTargetManager.recordTouch(x, y, key, naratgulEngine.lastInputJamo)
+                        } else {
+                            hitTargetManager.recordTouch(x, y, key)
+                            handleKeyAction(key.action)
+                        }
+                        onKeyPressed()
+                    }
+                }
+                pressedKey = null
+                isLongPressTriggered = false
+                invalidate()
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                longPressRunnable?.let { handler.removeCallbacks(it) }
+                longPressRunnable = null
+                cancelBackspaceRepeat()
+                pressedKey = null
+                isLongPressTriggered = false
+                isSwipeCandidate = false
+                invalidate()
+            }
+        }
+        return true
+    }
+
+    private fun scheduleBackspaceRepeat() {
+        val ic = inputConnection ?: return
+        // 즉시 한 번 삭제
+        performBackspace(ic)
+        backspaceRepeatRunnable = object : Runnable {
+            override fun run() {
+                if (pressedKey?.action is KeyAction.Backspace) {
+                    performBackspace(ic)
+                    handler.postDelayed(this, backspaceRepeatIntervalMs)
+                }
+            }
+        }
+        handler.postDelayed(backspaceRepeatRunnable!!, backspaceRepeatIntervalMs)
+    }
+
+    private fun cancelBackspaceRepeat() {
+        backspaceRepeatRunnable?.let { handler.removeCallbacks(it) }
+        backspaceRepeatRunnable = null
+    }
+
+    private fun performBackspace(ic: InputConnection) {
+        val eng = inputEngine as? NaratgulInputEngine
+        val hadComposing = eng?.composer?.isEmpty() == false
+        inputEngine.processAction(KeyAction.Backspace, ic)
+        if (!hadComposing && currentWordBuffer.isNotEmpty()) {
+            currentWordBuffer.deleteCharAt(currentWordBuffer.length - 1)
+        }
+        notifyComposingChanged()
+        invalidate()
+    }
+
+    private fun handleKeyAction(action: KeyAction) {
+        val ic = inputConnection ?: return
+
+        when (action) {
+            is KeyAction.SwitchToNaratgul -> {
+                ic.finishComposingText(); inputEngine.reset(); currentWordBuffer.clear()
+                prevLayout = NaratgulLayout
+                onLayoutSwitch(NaratgulLayout)
+            }
+            is KeyAction.SwitchToQwerty -> {
+                ic.finishComposingText(); inputEngine.reset(); currentWordBuffer.clear()
+                prevLayout = QwertyLayout
+                onLayoutSwitch(QwertyLayout)
+            }
+            is KeyAction.SwitchToNumber -> {
+                ic.finishComposingText(); inputEngine.reset(); currentWordBuffer.clear()
+                if (!isAuxLayout(layout)) prevLayout = layout
+                onLayoutSwitch(NumberLayout)
+            }
+            is KeyAction.SwitchToSymbol -> {
+                ic.finishComposingText(); inputEngine.reset(); currentWordBuffer.clear()
+                if (!isAuxLayout(layout)) prevLayout = layout
+                onLayoutSwitch(SymbolLayout.Page1)
+            }
+            is KeyAction.SwitchToQwertySymbol -> {
+                ic.finishComposingText(); inputEngine.reset(); currentWordBuffer.clear()
+                if (!isAuxLayout(layout)) prevLayout = layout
+                onLayoutSwitch(QwertySymbolLayout.Page1)
+            }
+            is KeyAction.SymbolNextPage -> {
+                val next = when (val cur = layout) {
+                    is SymbolLayout       -> SymbolLayout.nextPage(cur)
+                    is QwertySymbolLayout -> QwertySymbolLayout.nextPage(cur)
+                    else -> SymbolLayout.Page1
+                }
+                onLayoutSwitch(next)
+            }
+            is KeyAction.ShowEmoji -> {
+                ic.finishComposingText(); inputEngine.reset()
+                if (!isAuxLayout(layout)) prevLayout = layout
+                onLayoutSwitch(EmojiLayout.of(0))
+            }
+            is KeyAction.SwitchEmojiCategory -> {
+                onLayoutSwitch(EmojiLayout.of(action.categoryIndex))
+            }
+            is KeyAction.ReturnToPrev -> {
+                ic.finishComposingText(); inputEngine.reset(); currentWordBuffer.clear()
+                onLayoutSwitch(prevLayout)
+            }
+
+            is KeyAction.Space -> {
+                inputEngine.processAction(action, ic)
+                val word = currentWordBuffer.toString().trim()
+                currentWordBuffer.clear()
+                if (word.isNotEmpty()) onWordCommitted(word)
+                onComposingChanged("")
+            }
+            is KeyAction.Enter -> {
+                inputEngine.processAction(action, ic)
+                val word = currentWordBuffer.toString().trim()
+                currentWordBuffer.clear()
+                if (word.isNotEmpty()) onWordCommitted(word)
+                onComposingChanged("")
+            }
+            is KeyAction.TypeNumber -> {
+                val word = currentWordBuffer.toString().trim()
+                currentWordBuffer.clear()
+                if (word.isNotEmpty()) onWordCommitted(word)
+                inputEngine.processAction(action, ic)
+                onComposingChanged("")
+            }
+            is KeyAction.Backspace -> {
+                // 단일 탭 처리 (롱프레스 반복은 scheduleBackspaceRepeat에서 처리)
+                performBackspace(ic)
+                return  // invalidate()는 performBackspace에서 호출
+            }
+            is KeyAction.TypeText -> {
+                inputEngine.processAction(action, ic)
+                currentWordBuffer.append(action.text)
+                notifyComposingChanged()
+            }
+            is KeyAction.TypeHangul, is KeyAction.AddStroke, is KeyAction.ToggleDouble -> {
+                inputEngine.processAction(action, ic)
+                notifyComposingChanged()
+            }
+            else -> inputEngine.processAction(action, ic)
+        }
+
+        invalidate()
+    }
+
+    private fun notifyComposingChanged() {
+        val composingJamo = (inputEngine as? NaratgulInputEngine)?.composer?.getComposingText() ?: ""
+        onComposingChanged(currentWordBuffer.toString() + composingJamo)
+    }
+
+    /**
+     * 예측 엔진이 계산한 다음 키 힌트를 히트 타겟 매니저에 적용.
+     * DaramInputMethodService에서 onComposingChanged 콜백 후 호출.
+     */
+    fun applyNextKeyHints(hints: Map<String, Float>) {
+        hitTargetManager.setNextKeyHints(hints)
+    }
+}
