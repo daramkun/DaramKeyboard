@@ -29,6 +29,12 @@ android {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
     }
+
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+        }
+    }
 }
 
 dependencies {
@@ -37,4 +43,5 @@ dependencies {
     implementation(libs.androidx.preference.ktx)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.recyclerview)
+    implementation("com.github.daramkun:nutcracker:main-SNAPSHOT")
 }
