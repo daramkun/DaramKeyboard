@@ -12,6 +12,25 @@
     <string name="pref_word_prediction_title">단어 예측</string>
     <string name="pref_show_hit_targets_title">히트 타겟 시각화</string>
     <string name="pref_show_hit_targets_summary">각 키의 실제 터치 인식 범위를 화면에 표시합니다</string>
+    <string name="pref_korean_keyboard_type_title">한국어 자판</string>
+
+    <string-array name="korean_keyboard_type_entries">
+        <item>나랏글</item>
+        <item>천지인</item>
+        <item>SKY-II</item>
+        <item>모토로라</item>
+        <item>단모음</item>
+        <item>두벌식</item>
+    </string-array>
+
+    <string-array name="korean_keyboard_type_values">
+        <item>naratgeul</item>
+        <item>cheonjiin</item>
+        <item>sky2</item>
+        <item>motorola</item>
+        <item>danmoeum</item>
+        <item>dubeolsik</item>
+    </string-array>
 
     <string-array name="theme_entries">
         <item>자동 (시스템)</item>

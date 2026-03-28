@@ -22,4 +22,4 @@ Android용 나랏글 키보드 프로젝트.
 | 단어 예측 | Trie 기반 사전 + bigram |
 
 ## 그 외
-.claude/claude-code-agent-workflow-principles-boris-cherny-claude.md 파일 참조
+@.claude/claude-code-agent-workflow-principles-boris-cherny-claude.md

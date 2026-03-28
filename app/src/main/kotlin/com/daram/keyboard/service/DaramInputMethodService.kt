@@ -10,6 +10,8 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import com.daram.keyboard.feedback.HapticFeedbackManager
 import com.daram.keyboard.feedback.SoundFeedbackManager
+import com.daram.keyboard.input.HangulInputEngine
+import com.daram.keyboard.input.KeyboardFactory
 import com.daram.keyboard.input.NaratgulInputEngine
 import com.daram.keyboard.input.QwertyInputEngine
 import com.daram.keyboard.layout.EmojiLayout
@@ -17,9 +19,8 @@ import com.daram.keyboard.layout.KeyboardLayout
 import com.daram.keyboard.layout.NaratgulLayout
 import com.daram.keyboard.layout.NumberLayout
 import com.daram.keyboard.layout.QwertyLayout
-import com.daram.keyboard.layout.QwertySymbolLayout
 import com.daram.keyboard.layout.SymbolLayout
-import com.daram.keyboard.prediction.NaratgulNextKeyPredictor
+import com.daram.keyboard.model.KoreanKeyboardType
 import com.daram.keyboard.prediction.WordPredictionEngine
 import com.daram.keyboard.settings.PreferenceManager
 import com.daram.keyboard.theme.ThemeManager
@@ -37,14 +38,17 @@ class DaramInputMethodService : InputMethodService() {
     private lateinit var soundManager: SoundFeedbackManager
     private lateinit var predictionEngine: WordPredictionEngine
 
-    private val naratgulEngine = NaratgulInputEngine()
     private val qwertyEngine = QwertyInputEngine()
 
-    private var currentLayout: KeyboardLayout = NaratgulLayout
+    /** 현재 활성 한글 입력 엔진 (자판 타입에 따라 교체됨) */
+    private var koreanEngine: HangulInputEngine = NaratgulInputEngine()
+    /** 현재 활성 한글 레이아웃 */
+    private var koreanLayout: KeyboardLayout = NaratgulLayout
+
+    private var currentLayout: KeyboardLayout = koreanLayout
     private var currentComposingWord = ""
     private var isEmojiMode = false
-    // 이모지 패널 복귀 대상 레이아웃
-    private var prevLayoutBeforeEmoji: KeyboardLayout = NaratgulLayout
+    private var prevLayoutBeforeEmoji: KeyboardLayout = koreanLayout
 
     override fun onCreate() {
         super.onCreate()
@@ -52,10 +56,9 @@ class DaramInputMethodService : InputMethodService() {
         soundManager = SoundFeedbackManager(this).also { it.init() }
         predictionEngine = WordPredictionEngine(this)
         predictionEngine.init()
+        applyKoreanKeyboardType(PreferenceManager.getKoreanKeyboardType(this))
     }
 
-    // fullscreen 모드를 항상 끔: 활성화 시 시스템이 키보드 위에
-    // "완료"/"숨기기" 버튼 오버레이를 그려서 키 영역과 겹침
     override fun onEvaluateFullscreenMode(): Boolean = false
 
     override fun onCreateInputView(): View {
@@ -70,11 +73,13 @@ class DaramInputMethodService : InputMethodService() {
         keyboardView = KeyboardView(
             context = this,
             theme = theme,
-            inputEngine = naratgulEngine,
+            inputEngine = koreanEngine,
             onLayoutSwitch = { newLayout -> switchLayout(newLayout) },
             onKeyPressed = { performFeedback() },
             onComposingChanged = { composing -> onComposingChanged(composing) },
-            onWordCommitted = { word -> onWordCommitted(word) }
+            onWordCommitted = { word -> onWordCommitted(word) },
+            onSwitchKoreanType = { switchKoreanType() },
+            onSwitchToNextIme = { switchToNextInputMethod(false) }
         )
 
         emojiKeyboardView = EmojiKeyboardView(
@@ -96,7 +101,6 @@ class DaramInputMethodService : InputMethodService() {
         keyboardView.inputConnection = currentInputConnection
         keyboardView.post { applyGestureNavPadding() }
 
-        // 키보드/이모지 전환용 컨테이너
         keyboardContainer = FrameLayout(this).apply {
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -139,7 +143,7 @@ class DaramInputMethodService : InputMethodService() {
 
     override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
-        naratgulEngine.reset()
+        koreanEngine.reset()
         qwertyEngine.reset()
         predictionEngine.resetContext()
         currentComposingWord = ""
@@ -157,7 +161,6 @@ class DaramInputMethodService : InputMethodService() {
                 emojiKeyboardView.applyTheme(theme)
             }
 
-            // 서브타입 기반 초기 레이아웃 적용
             val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
             applySubtypeLayout(imm.currentInputMethodSubtype)
             applyGestureNavPadding()
@@ -173,19 +176,39 @@ class DaramInputMethodService : InputMethodService() {
 
     private fun applySubtypeLayout(subtype: InputMethodSubtype?) {
         val isEnglish = subtype?.languageTag?.startsWith("en") == true
-        val targetLayout = if (isEnglish) QwertyLayout else NaratgulLayout
+        val targetLayout = if (isEnglish) QwertyLayout else koreanLayout
         if (currentLayout == targetLayout) return
-        // 이모지 모드 중이라면 복귀 대상 레이아웃만 변경
         if (isEmojiMode) {
             prevLayoutBeforeEmoji = targetLayout
             return
         }
         currentLayout = targetLayout
-        val newEngine = if (isEnglish) qwertyEngine else naratgulEngine
+        val newEngine = if (isEnglish) qwertyEngine else koreanEngine
         keyboardView.switchLayout(targetLayout, newEngine)
         keyboardView.inputConnection = currentInputConnection
-        naratgulEngine.reset()
+        koreanEngine.reset()
         qwertyEngine.reset()
+    }
+
+    private fun applyKoreanKeyboardType(type: KoreanKeyboardType) {
+        val (layout, engine) = KeyboardFactory.createKorean(type)
+        koreanLayout = layout
+        koreanEngine = engine
+    }
+
+    private fun switchKoreanType() {
+        val next = PreferenceManager.cycleKoreanKeyboardType(this)
+        applyKoreanKeyboardType(next)
+        // 현재 한글 레이아웃이 활성화된 상태라면 즉시 교체
+        if (!isEmojiMode && currentLayout.isKorean()) {
+            currentLayout = koreanLayout
+            keyboardView.switchLayout(koreanLayout, koreanEngine)
+            keyboardView.inputConnection = currentInputConnection
+        }
+        if (isEmojiMode && prevLayoutBeforeEmoji.isKorean()) {
+            prevLayoutBeforeEmoji = koreanLayout
+        }
+        performFeedback()
     }
 
     private fun applyGestureNavPadding() {
@@ -199,8 +222,6 @@ class DaramInputMethodService : InputMethodService() {
         keyboardView.updateGestureNavPadding(bottomPx)
         if (::emojiKeyboardView.isInitialized) {
             emojiKeyboardView.setGestureNavPadding(bottomPx)
-            // 이모지 패널 높이를 KeyboardView와 동일하게 맞춤
-            // KeyboardView 높이가 아직 0이면 post로 재시도
             val kbHeight = keyboardView.measuredHeight
             if (kbHeight > 0) {
                 (emojiKeyboardView.layoutParams as? FrameLayout.LayoutParams)?.height = kbHeight
@@ -219,7 +240,7 @@ class DaramInputMethodService : InputMethodService() {
 
     override fun onFinishInput() {
         super.onFinishInput()
-        naratgulEngine.reset()
+        koreanEngine.reset()
         qwertyEngine.reset()
         currentComposingWord = ""
     }
@@ -230,7 +251,6 @@ class DaramInputMethodService : InputMethodService() {
     }
 
     private fun switchLayout(newLayout: KeyboardLayout) {
-        // 이모지 레이아웃은 EmojiKeyboardView로 처리
         if (newLayout is EmojiLayout) {
             showEmojiPanel()
             return
@@ -238,14 +258,7 @@ class DaramInputMethodService : InputMethodService() {
 
         showKeyboard()
         currentLayout = newLayout
-        // QWERTY 계열(QwertyLayout, QwertySymbolLayout)은 영문 엔진, 나머지는 나랏글 엔진
-        // 기호는 엔진을 변경하지 않음 (입력 없음)
-        val newEngine = when {
-            newLayout == QwertyLayout || newLayout is QwertySymbolLayout -> qwertyEngine
-            newLayout is SymbolLayout || newLayout == NumberLayout -> null
-            else -> naratgulEngine
-        }
-        keyboardView.switchLayout(newLayout, newEngine)
+        keyboardView.switchLayout(newLayout, engineForLayout(newLayout))
         keyboardView.inputConnection = currentInputConnection
         performFeedback()
     }
@@ -254,7 +267,6 @@ class DaramInputMethodService : InputMethodService() {
         if (!::emojiKeyboardView.isInitialized || !::keyboardView.isInitialized) return
         prevLayoutBeforeEmoji = currentLayout
         isEmojiMode = true
-        // 이모지 패널 높이를 KeyboardView 현재 높이에 맞춤
         val kbHeight = keyboardView.measuredHeight
         if (kbHeight > 0) {
             (emojiKeyboardView.layoutParams as? FrameLayout.LayoutParams)?.height = kbHeight
@@ -263,8 +275,7 @@ class DaramInputMethodService : InputMethodService() {
         keyboardView.visibility = View.GONE
         emojiKeyboardView.visibility = View.VISIBLE
         emojiKeyboardView.selectCategory(0)
-        // 뒤로가기 버튼 레이블: 이전 레이아웃이 QWERTY 계열이면 "EN", 나머지는 "한"
-        val backLabel = if (currentLayout == QwertyLayout || currentLayout is QwertySymbolLayout) "EN" else "한"
+        val backLabel = currentLayout.returnButtonLabel
         emojiKeyboardView.setBackLabel(backLabel)
         performFeedback()
     }
@@ -275,16 +286,19 @@ class DaramInputMethodService : InputMethodService() {
         isEmojiMode = false
         emojiKeyboardView.visibility = View.GONE
         keyboardView.visibility = View.VISIBLE
-        // 이모지 패널 이전 레이아웃으로 복귀
         currentLayout = prevLayoutBeforeEmoji
-        val newEngine = when {
-            prevLayoutBeforeEmoji == QwertyLayout || prevLayoutBeforeEmoji is QwertySymbolLayout -> qwertyEngine
-            prevLayoutBeforeEmoji is SymbolLayout || prevLayoutBeforeEmoji == NumberLayout -> null
-            else -> naratgulEngine
-        }
-        keyboardView.switchLayout(prevLayoutBeforeEmoji, newEngine)
+        keyboardView.switchLayout(prevLayoutBeforeEmoji, engineForLayout(prevLayoutBeforeEmoji))
         keyboardView.inputConnection = currentInputConnection
     }
+
+    private fun engineForLayout(layout: KeyboardLayout) = when {
+        layout == QwertyLayout -> qwertyEngine
+        layout is SymbolLayout || layout == NumberLayout -> null
+        else -> koreanEngine
+    }
+
+    private fun KeyboardLayout.isKorean(): Boolean =
+        this != QwertyLayout && this !is SymbolLayout && this != NumberLayout
 
     private fun performFeedback() {
         if (PreferenceManager.isHapticEnabled(this)) hapticManager.performKeyClick()
@@ -301,7 +315,6 @@ class DaramInputMethodService : InputMethodService() {
         predictionEngine.onWordConfirmed(word)
         currentComposingWord = ""
         updateCandidates("")
-        // 단어 확정 후 힌트 초기화
         if (::keyboardView.isInitialized) keyboardView.applyNextKeyHints(emptyMap())
     }
 
@@ -312,7 +325,7 @@ class DaramInputMethodService : InputMethodService() {
             ic.deleteSurroundingText(currentComposingWord.length, 0)
         }
         ic.commitText(word, 1)
-        naratgulEngine.reset()
+        koreanEngine.reset()
         qwertyEngine.reset()
         predictionEngine.onWordConfirmed(word)
         currentComposingWord = ""
@@ -330,10 +343,6 @@ class DaramInputMethodService : InputMethodService() {
         candidateBarView.updateCandidates(suggestions)
     }
 
-    /**
-     * 현재 입력 중인 단어를 바탕으로 다음에 눌릴 키를 예측하여
-     * KeyboardView의 히트 타겟을 미리 확장.
-     */
     private fun updateNextKeyHints(composing: String) {
         if (!::keyboardView.isInitialized || !predictionEngine.isReady()) return
         if (!PreferenceManager.isWordPredictionEnabled(this)) {
@@ -341,18 +350,17 @@ class DaramInputMethodService : InputMethodService() {
             return
         }
 
+        val isKoreanLayout = currentLayout.isKorean()
+
         val hints: Map<String, Float> = when {
-            currentLayout == NaratgulLayout -> {
-                // 나랏글 모드: 조합 중인 자소 상태 포함
-                val composingText = naratgulEngine.composer.getComposingText()
-                val composerState = NaratgulNextKeyPredictor.ComposerState.fromComposingText(composingText)
-                // committedLength: currentWordBuffer에서 composingText를 제외한 확정 음절 수
+            isKoreanLayout && koreanEngine is NaratgulInputEngine -> {
+                val composingText = koreanEngine.getComposingText()
                 val committedPart = if (composingText.isNotEmpty() && composing.endsWith(composingText)) {
                     composing.dropLast(composingText.length)
                 } else {
                     composing
                 }
-                predictionEngine.getNextKeyHintsForNaratgul(composing, committedPart.length, composerState)
+                predictionEngine.getNextKeyHintsForNaratgul(committedPart, koreanEngine.syllableState)
             }
             currentLayout == QwertyLayout -> {
                 predictionEngine.getNextKeyHintsForQwerty(composing)

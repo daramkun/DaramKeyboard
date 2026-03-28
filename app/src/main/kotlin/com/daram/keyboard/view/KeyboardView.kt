@@ -16,15 +16,17 @@ import android.view.WindowInsets
 import android.view.inputmethod.InputConnection
 import com.daram.keyboard.hittarget.HitTargetManager
 import com.daram.keyboard.settings.PreferenceManager
+import com.daram.keyboard.input.HangulInputEngine
 import com.daram.keyboard.input.InputEngine
 import com.daram.keyboard.input.NaratgulInputEngine
 import com.daram.keyboard.input.QwertyInputEngine
+import com.daram.keyboard.input.ShiftState
 import com.daram.keyboard.layout.EmojiLayout
 import com.daram.keyboard.layout.KeyboardLayout
 import com.daram.keyboard.layout.NaratgulLayout
 import com.daram.keyboard.layout.NumberLayout
 import com.daram.keyboard.layout.QwertyLayout
-import com.daram.keyboard.layout.QwertySymbolLayout
+import com.daram.keyboard.layout.SecondaryLabelAlignment
 import com.daram.keyboard.layout.SymbolLayout
 import com.daram.keyboard.model.Key
 import com.daram.keyboard.model.KeyAction
@@ -40,7 +42,11 @@ class KeyboardView(
     /** 현재 입력 중인 단어 접두사 (단어 예측용) */
     private val onComposingChanged: (String) -> Unit = {},
     /** 스페이스/엔터로 단어가 완전히 확정될 때 */
-    private val onWordCommitted: (String) -> Unit = {}
+    private val onWordCommitted: (String) -> Unit = {},
+    /** 한국어 자판 종류 전환 요청 */
+    private val onSwitchKoreanType: () -> Unit = {},
+    /** 시스템 다음 IME로 전환 요청 */
+    private val onSwitchToNextIme: () -> Unit = {}
 ) : View(context) {
 
     private var layout: KeyboardLayout = NaratgulLayout
@@ -111,9 +117,9 @@ class KeyboardView(
         attachEngineCallbacks()
     }
 
-    /** NaratgulInputEngine에 commit 추적 콜백 연결 */
+    /** HangulInputEngine에 commit 추적 콜백 연결 */
     private fun attachEngineCallbacks() {
-        (inputEngine as? NaratgulInputEngine)?.onTextCommitted = { committed ->
+        (inputEngine as? HangulInputEngine)?.onTextCommitted = { committed ->
             currentWordBuffer.append(committed)
         }
     }
@@ -257,13 +263,8 @@ class KeyboardView(
                 (key.action as KeyAction.SwitchEmojiCategory).categoryIndex == emojiLayout.categoryIndex
     }
 
-    /** 숫자/기호/이모지 등 보조 레이아웃 여부 — prevLayout 갱신 대상에서 제외 */
-    private fun isAuxLayout(l: KeyboardLayout) =
-        l == NumberLayout || l is SymbolLayout || l is QwertySymbolLayout || l is EmojiLayout
-
-    /** ReturnToPrev 버튼에 표시할 레이블: 이전 레이아웃이 QWERTY 계열이면 "EN", 나머지는 "한" */
-    private fun returnLabel(): String =
-        if (prevLayout == QwertyLayout || prevLayout is QwertySymbolLayout) "EN" else "한"
+    /** ReturnToPrev 버튼에 표시할 레이블: 이전 레이아웃의 메타데이터에서 결정 */
+    private fun returnLabel(): String = prevLayout.returnButtonLabel
 
     private fun drawKey(canvas: Canvas, key: Key, rect: RectF) {
         val isPressed = pressedKey?.id == key.id
@@ -314,16 +315,16 @@ class KeyboardView(
             KeyStyle.RETURN    -> canvas.drawText(returnLabel(), cx, textY, labelPaint)
             KeyStyle.SHIFT     -> {
                 val shiftState = (inputEngine as? QwertyInputEngine)?.getShiftState()
-                    ?: QwertyInputEngine.ShiftState.OFF
+                    ?: (inputEngine as? HangulInputEngine)?.takeIf { it.hasShift }?.shiftState
+                    ?: ShiftState.OFF
                 val icon = when (shiftState) {
-                    QwertyInputEngine.ShiftState.OFF    -> "\u2191"  // ↑
-                    QwertyInputEngine.ShiftState.ONCE   -> "\u21E7"  // ⇧
-                    QwertyInputEngine.ShiftState.LOCKED -> "\u21EA"  // ⇪
+                    ShiftState.OFF    -> "\u2191"  // ↑
+                    ShiftState.ONCE   -> "\u21E7"  // ⇧
+                    ShiftState.LOCKED -> "\u21EA"  // ⇪
                 }
-                // LOCKED 상태는 강조색
-                if (shiftState == QwertyInputEngine.ShiftState.LOCKED) {
+                if (shiftState == ShiftState.LOCKED) {
                     labelPaint.color = theme.keyPressedBackground
-                } else if (shiftState == QwertyInputEngine.ShiftState.ONCE) {
+                } else if (shiftState == ShiftState.ONCE) {
                     labelPaint.color = theme.keyLabelColor
                 }
                 canvas.drawText(icon, cx, textY, labelPaint)
@@ -335,7 +336,7 @@ class KeyboardView(
         }
 
         if (key.secondaryLabel != null) {
-            val showSecondaryOnRight = layout is NaratgulLayout || layout is NumberLayout
+            val showSecondaryOnRight = layout.secondaryLabelAlignment == SecondaryLabelAlignment.BOTTOM_RIGHT
             if (showSecondaryOnRight) {
                 secondaryLabelPaint.textAlign = Paint.Align.RIGHT
                 canvas.drawText(key.secondaryLabel,
@@ -426,11 +427,12 @@ class KeyboardView(
                     pressedKey?.let { key ->
                         // 한글 키 액션이면 자소를 먼저 처리한 뒤 lastInputJamo를 읽어야 하므로
                         // handleKeyAction 전에 임시로 action을 확인, TypeHangul이면 처리 후 jamo를 획득
-                        val naratgulEngine = inputEngine as? NaratgulInputEngine
-                        if (key.action is KeyAction.TypeHangul && naratgulEngine != null) {
+                        val hangulEngine = inputEngine as? HangulInputEngine
+                        val isHangulKey = key.action is KeyAction.TypeHangul || key.action is KeyAction.TypeRawKey
+                        if (isHangulKey && hangulEngine != null) {
                             handleKeyAction(key.action)
                             // 처리 후 실제 반영된 자소를 히트 타겟에 기록
-                            hitTargetManager.recordTouch(x, y, key, naratgulEngine.lastInputJamo)
+                            hitTargetManager.recordTouch(x, y, key, hangulEngine.lastInputJamo)
                         } else {
                             hitTargetManager.recordTouch(x, y, key)
                             handleKeyAction(key.action)
@@ -475,9 +477,15 @@ class KeyboardView(
         backspaceRepeatRunnable = null
     }
 
+    private fun resetComposing(ic: InputConnection, clearWord: Boolean = true) {
+        ic.finishComposingText()
+        inputEngine.reset()
+        if (clearWord) currentWordBuffer.clear()
+    }
+
     private fun performBackspace(ic: InputConnection) {
-        val eng = inputEngine as? NaratgulInputEngine
-        val hadComposing = eng?.composer?.isEmpty() == false
+        val eng = inputEngine as? HangulInputEngine
+        val hadComposing = eng?.isEmpty() == false
         inputEngine.processAction(KeyAction.Backspace, ic)
         if (!hadComposing && currentWordBuffer.isNotEmpty()) {
             currentWordBuffer.deleteCharAt(currentWordBuffer.length - 1)
@@ -491,49 +499,54 @@ class KeyboardView(
 
         when (action) {
             is KeyAction.SwitchToNaratgul -> {
-                ic.finishComposingText(); inputEngine.reset(); currentWordBuffer.clear()
+                resetComposing(ic)
                 prevLayout = NaratgulLayout
                 onLayoutSwitch(NaratgulLayout)
             }
             is KeyAction.SwitchToQwerty -> {
-                ic.finishComposingText(); inputEngine.reset(); currentWordBuffer.clear()
+                resetComposing(ic)
                 prevLayout = QwertyLayout
                 onLayoutSwitch(QwertyLayout)
             }
             is KeyAction.SwitchToNumber -> {
-                ic.finishComposingText(); inputEngine.reset(); currentWordBuffer.clear()
-                if (!isAuxLayout(layout)) prevLayout = layout
+                resetComposing(ic)
+                if (!layout.isAuxiliary) prevLayout = layout
                 onLayoutSwitch(NumberLayout)
             }
             is KeyAction.SwitchToSymbol -> {
-                ic.finishComposingText(); inputEngine.reset(); currentWordBuffer.clear()
-                if (!isAuxLayout(layout)) prevLayout = layout
+                resetComposing(ic)
+                if (!layout.isAuxiliary) prevLayout = layout
                 onLayoutSwitch(SymbolLayout.Page1)
             }
             is KeyAction.SwitchToQwertySymbol -> {
-                ic.finishComposingText(); inputEngine.reset(); currentWordBuffer.clear()
-                if (!isAuxLayout(layout)) prevLayout = layout
-                onLayoutSwitch(QwertySymbolLayout.Page1)
+                resetComposing(ic)
+                if (!layout.isAuxiliary) prevLayout = layout
+                onLayoutSwitch(SymbolLayout.QwertyPage1)
             }
             is KeyAction.SymbolNextPage -> {
-                val next = when (val cur = layout) {
-                    is SymbolLayout       -> SymbolLayout.nextPage(cur)
-                    is QwertySymbolLayout -> QwertySymbolLayout.nextPage(cur)
-                    else -> SymbolLayout.Page1
-                }
+                val next = if (layout is SymbolLayout) SymbolLayout.nextPage(layout)
+                           else SymbolLayout.Page1
                 onLayoutSwitch(next)
             }
             is KeyAction.ShowEmoji -> {
-                ic.finishComposingText(); inputEngine.reset()
-                if (!isAuxLayout(layout)) prevLayout = layout
+                resetComposing(ic, clearWord = false)
+                if (!layout.isAuxiliary) prevLayout = layout
                 onLayoutSwitch(EmojiLayout.of(0))
             }
             is KeyAction.SwitchEmojiCategory -> {
                 onLayoutSwitch(EmojiLayout.of(action.categoryIndex))
             }
             is KeyAction.ReturnToPrev -> {
-                ic.finishComposingText(); inputEngine.reset(); currentWordBuffer.clear()
+                resetComposing(ic)
                 onLayoutSwitch(prevLayout)
+            }
+            is KeyAction.SwitchKoreanType -> {
+                resetComposing(ic)
+                onSwitchKoreanType()
+            }
+            is KeyAction.SwitchToNextIme -> {
+                resetComposing(ic)
+                onSwitchToNextIme()
             }
 
             is KeyAction.Space -> {
@@ -567,7 +580,8 @@ class KeyboardView(
                 currentWordBuffer.append(action.text)
                 notifyComposingChanged()
             }
-            is KeyAction.TypeHangul, is KeyAction.AddStroke, is KeyAction.ToggleDouble -> {
+            is KeyAction.TypeHangul, is KeyAction.AddStroke, is KeyAction.ToggleDouble,
+            is KeyAction.TypeRawKey -> {
                 inputEngine.processAction(action, ic)
                 notifyComposingChanged()
             }
@@ -578,7 +592,7 @@ class KeyboardView(
     }
 
     private fun notifyComposingChanged() {
-        val composingJamo = (inputEngine as? NaratgulInputEngine)?.composer?.getComposingText() ?: ""
+        val composingJamo = (inputEngine as? HangulInputEngine)?.getComposingText() ?: ""
         onComposingChanged(currentWordBuffer.toString() + composingJamo)
     }
 
