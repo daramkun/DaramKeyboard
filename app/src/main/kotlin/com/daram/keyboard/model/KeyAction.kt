@@ -23,8 +23,14 @@ sealed class KeyAction {
     /** Shift 고정 (CapsLock) */
     object ShiftLock : KeyAction()
     data class TypeNumber(val digit: Int) : KeyAction()
+    /** 자동마타에 원시 char를 그대로 전달 (천지인·두벌식 등 모든 한글 레이아웃 공용) */
+    data class TypeRawKey(val char: Char) : KeyAction()
     /** QWERTY 전용 기호 레이아웃으로 전환 */
     object SwitchToQwertySymbol : KeyAction()
     /** 이전 레이아웃(나랏글 또는 QWERTY)으로 복귀 */
     object ReturnToPrev : KeyAction()
+    /** 한국어 자판 종류 전환 (설정 또는 다음 자판으로 순환) */
+    object SwitchKoreanType : KeyAction()
+    /** 시스템 다음 키보드(IME)로 전환 */
+    object SwitchToNextIme : KeyAction()
 }

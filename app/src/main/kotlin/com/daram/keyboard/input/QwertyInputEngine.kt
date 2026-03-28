@@ -5,8 +5,6 @@ import com.daram.keyboard.model.KeyAction
 
 class QwertyInputEngine : InputEngine {
 
-    enum class ShiftState { OFF, ONCE, LOCKED }
-
     private var shiftState = ShiftState.OFF
 
     override fun processAction(action: KeyAction, inputConnection: InputConnection) {
@@ -14,7 +12,6 @@ class QwertyInputEngine : InputEngine {
             is KeyAction.TypeText -> {
                 val text = if (shiftState != ShiftState.OFF) action.text.uppercase() else action.text
                 inputConnection.commitText(text, 1)
-                // ONCE 모드면 한 글자 입력 후 해제
                 if (shiftState == ShiftState.ONCE) shiftState = ShiftState.OFF
             }
             is KeyAction.TypeNumber -> {
@@ -31,12 +28,7 @@ class QwertyInputEngine : InputEngine {
                 inputConnection.commitText("\n", 1)
             }
             is KeyAction.Shift -> {
-                // OFF → ONCE → LOCKED → OFF 순환
-                shiftState = when (shiftState) {
-                    ShiftState.OFF    -> ShiftState.ONCE
-                    ShiftState.ONCE   -> ShiftState.LOCKED
-                    ShiftState.LOCKED -> ShiftState.OFF
-                }
+                shiftState = shiftState.next()
             }
             else -> { /* 나머지 액션은 서비스에서 처리 */ }
         }
