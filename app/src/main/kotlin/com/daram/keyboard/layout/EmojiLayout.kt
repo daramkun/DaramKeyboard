@@ -79,6 +79,8 @@ class EmojiLayout private constructor(val categoryIndex: Int) : KeyboardLayout {
         )
     }
 
+    override val isAuxiliary = true
+
     override val rows: List<List<Key>> get() {
         val emojiRows = emojiData.mapIndexed { rowIdx, emojis ->
             emojis.mapIndexed { colIdx, emoji ->

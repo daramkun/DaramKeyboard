@@ -4,12 +4,19 @@ import com.daram.keyboard.model.Key
 import com.daram.keyboard.model.KeyAction
 import com.daram.keyboard.model.KeyStyle
 
-class SymbolLayout private constructor(val page: Int) : KeyboardLayout {
+class SymbolLayout private constructor(
+    val page: Int,
+    override val returnButtonLabel: String = "한"
+) : KeyboardLayout {
 
     companion object {
         val Page1 = SymbolLayout(0)
         val Page2 = SymbolLayout(1)
         val Page3 = SymbolLayout(2)
+
+        val QwertyPage1 = SymbolLayout(0, "EN")
+        val QwertyPage2 = SymbolLayout(1, "EN")
+        val QwertyPage3 = SymbolLayout(2, "EN")
 
         fun page(index: Int) = when (index) {
             1 -> Page2
@@ -17,8 +24,17 @@ class SymbolLayout private constructor(val page: Int) : KeyboardLayout {
             else -> Page1
         }
 
-        fun nextPage(current: SymbolLayout) = page((current.page + 1) % 3)
+        fun nextPage(current: SymbolLayout): SymbolLayout {
+            val next = (current.page + 1) % 3
+            return if (current.returnButtonLabel == "EN") when (next) {
+                1 -> QwertyPage2
+                2 -> QwertyPage3
+                else -> QwertyPage1
+            } else page(next)
+        }
     }
+
+    override val isAuxiliary = true
 
     override val rows: List<List<Key>> get() = when (page) {
         0 -> page1Rows

@@ -5,6 +5,9 @@ import com.daram.keyboard.model.KeyAction
 import com.daram.keyboard.model.KeyStyle
 
 object NumberLayout : KeyboardLayout {
+    override val isAuxiliary = true
+    override val secondaryLabelAlignment = SecondaryLabelAlignment.BOTTOM_RIGHT
+
     override val rows: List<List<Key>> = listOf(
         // 행 1: - | 1 | 2 | 3 | ⌫
         listOf(

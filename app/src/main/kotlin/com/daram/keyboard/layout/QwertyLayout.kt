@@ -5,6 +5,8 @@ import com.daram.keyboard.model.KeyAction
 import com.daram.keyboard.model.KeyStyle
 
 object QwertyLayout : KeyboardLayout {
+    override val returnButtonLabel = "EN"
+
     override val rows: List<List<Key>> = listOf(
         // 행 1: q(1) w(2) e(3) r(4) t(5) y(6) u(7) i(8) o(9) p(0)
         listOf(
@@ -45,7 +47,7 @@ object QwertyLayout : KeyboardLayout {
         ),
         // 행 4: 한(1.5f) !@#(1.5f) ,(1f) Space(3f) .(1f) 😊(1f) ↵(1.5f)
         listOf(
-            Key("lang_ko", "한",  null, KeyAction.SwitchToNaratgul,   style = KeyStyle.FUNCTION, widthWeight = 1.5f),
+            Key("lang_ko", "⌨",  null, KeyAction.SwitchToNextIme,    style = KeyStyle.FUNCTION, widthWeight = 1.5f),
             Key("qsym",    "!@#", null, KeyAction.SwitchToQwertySymbol,style = KeyStyle.FUNCTION, widthWeight = 1.5f),
             Key("comma",   ",",   null, KeyAction.TypeText(",")),
             Key("space",   " ",   null, KeyAction.Space, style = KeyStyle.SPACE, widthWeight = 3f),

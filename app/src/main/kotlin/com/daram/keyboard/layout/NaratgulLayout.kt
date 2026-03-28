@@ -5,6 +5,8 @@ import com.daram.keyboard.model.KeyAction
 import com.daram.keyboard.model.KeyStyle
 
 object NaratgulLayout : KeyboardLayout {
+    override val secondaryLabelAlignment = SecondaryLabelAlignment.BOTTOM_RIGHT
+
     override val rows: List<List<Key>> = listOf(
         // 행 1: 123 | ㄱ(1) | ㄴ(2) | ㅏㅓ(3) | ⌫
         listOf(
@@ -30,9 +32,9 @@ object NaratgulLayout : KeyboardLayout {
             Key("i", "ㅣ", "9", KeyAction.TypeHangul('ㅣ'), KeyAction.TypeNumber(9)),
             Key("space_pad", "", null, KeyAction.Space, visible = false)
         ),
-        // 행 4: 한 | 획추가 | —(0) | 쌍자음 | ↵
+        // 행 4: 한↔EN(꾹=자판변경) | 획추가 | —(0) | 쌍자음 | ↵
         listOf(
-            Key("lang", "EN", null, KeyAction.SwitchToQwerty, style = KeyStyle.FUNCTION),
+            Key("lang", "⌨", null, KeyAction.SwitchToNextIme, KeyAction.SwitchKoreanType, style = KeyStyle.FUNCTION),
             Key("stroke", "획추가", null, KeyAction.AddStroke, style = KeyStyle.FUNCTION),
             Key("eu", "ㅡ", "0", KeyAction.TypeHangul('ㅡ'), KeyAction.TypeNumber(0)),
             Key("double", "쌍자음", null, KeyAction.ToggleDouble, style = KeyStyle.FUNCTION),
