@@ -5,30 +5,48 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import `in`.daram.nutcracker.SyllableState
+import `in`.daram.nutcracker.toComposingString
+import `in`.daram.nutcracker.prediction.DefaultWordPredictor
+import `in`.daram.nutcracker.prediction.InputLanguage
+import `in`.daram.nutcracker.prediction.PredictionQuery
+import `in`.daram.nutcracker.prediction.mapper.NaratgeulKeyMapper
+import `in`.daram.nutcracker.prediction.mapper.QwertyKeyMapper
+import `in`.daram.nutcracker.prediction.trie.TrieDictionary
+import `in`.daram.nutcracker.prediction.WordEntry
 
 class WordPredictionEngine(private val context: Context) {
-    private val trie = Trie()
-    private val userLearning = UserLearningModel(context)
+
+    private val koreanDict = TrieDictionary(InputLanguage.KOREAN)
+    private val englishDict = TrieDictionary(InputLanguage.ENGLISH)
+    private val predictor = DefaultWordPredictor(listOf(koreanDict, englishDict))
+
+    private val naratgeulMapper = NaratgeulKeyMapper()
+    private val qwertyMapper = QwertyKeyMapper()
+
+    /** 나랏글 물리 키 char → keyId 변환 맵 */
+    private val naratgeulCharToKeyId = mapOf(
+        'ㄱ' to "ga", 'ㄴ' to "na", 'ㅏ' to "ao",
+        'ㄹ' to "ra", 'ㅁ' to "ma", 'ㅗ' to "ou",
+        'ㅅ' to "sa", 'ㅇ' to "eo", 'ㅣ' to "i",
+        'ㅡ' to "eu"
+    )
 
     private var lastConfirmedWord = ""
     private var isReady = false
 
     private val scope = CoroutineScope(Dispatchers.IO)
 
-    private val naratgulPredictor = NaratgulNextKeyPredictor()
-    private val qwertyPredictor = QwertyNextKeyPredictor()
-
     /**
-     * 비동기 초기화: 사전 로드 → 사용자 학습 데이터 로드 → Trie 반영.
+     * 비동기 초기화: 한국어/영어 사전 로드 후 Trie에 반영.
      * @param onReady 준비 완료 시 Main 스레드에서 호출되는 콜백
      */
     fun init(onReady: () -> Unit = {}) {
         scope.launch {
-            // 1. 기본 사전 로드
-            loadDictionary()
-            // 2. 사용자 학습 데이터 로드 & Trie에 반영
-            userLearning.loadBlocking()
-            userLearning.applyToTrie(trie)
+            val koEntries = loadDictionary("dictionary_ko.txt")
+            koreanDict.initialize(koEntries)
+            val enEntries = loadDictionary("dictionary_en.txt")
+            if (enEntries.isNotEmpty()) englishDict.initialize(enEntries)
 
             withContext(Dispatchers.Main) {
                 isReady = true
@@ -37,44 +55,50 @@ class WordPredictionEngine(private val context: Context) {
         }
     }
 
-    private fun loadDictionary() {
-        try {
-            context.assets.open("dictionary_ko.txt").bufferedReader().use { reader ->
-                reader.forEachLine { line ->
-                    val word = line.trim()
-                    if (word.isNotEmpty()) trie.insert(word, 1)
-                }
+    private fun loadDictionary(fileName: String): List<WordEntry> {
+        return try {
+            context.assets.open(fileName).bufferedReader().use { reader ->
+                reader.lineSequence()
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                    .mapIndexed { idx, line ->
+                        // "단어 빈도수" 형식 지원, 없으면 역순 인덱스 기반 점수
+                        val parts = line.split('\t', ' ')
+                        val word = parts[0]
+                        val freq = parts.getOrNull(1)?.toIntOrNull() ?: (100_000 - idx).coerceAtLeast(1)
+                        WordEntry(word, freq)
+                    }
+                    .toList()
             }
-        } catch (_: Exception) { }
+        } catch (_: Exception) { emptyList() }
     }
 
     /**
-     * 현재 입력 중인 접두사로 후보 단어를 최대 3개 반환.
+     * 현재 입력 접두사로 후보 단어를 최대 3개 반환.
      */
     fun getSuggestions(currentInput: String): List<String> {
         if (!isReady || currentInput.isEmpty()) return emptyList()
-
-        var candidates = trie.search(currentInput, maxResults = 10)
-
-        // 사용자 bigram 패턴으로 재정렬
-        if (lastConfirmedWord.isNotEmpty()) {
-            candidates = userLearning.rerankWithBigram(lastConfirmedWord, candidates)
-        }
-
-        return candidates.map { it.first }.take(3)
+        val query = PredictionQuery(
+            committedText = currentInput,
+            composingState = SyllableState(),
+            composingText = "",
+            language = InputLanguage.KOREAN,
+            maxResults = 10
+        )
+        return predictor.predict(query).map { it.word }.take(3)
     }
 
     /**
-     * 사용자가 단어를 확정(스페이스/엔터/후보 탭)했을 때 호출.
+     * 사용자가 단어를 확정했을 때 호출.
      */
     fun onWordConfirmed(word: String) {
         if (word.isBlank()) return
-        userLearning.recordWord(lastConfirmedWord, word)
+        predictor.onWordCommitted(word, InputLanguage.KOREAN, lastConfirmedWord)
         lastConfirmedWord = word
     }
 
     /**
-     * 입력 필드 포커스가 바뀌거나 입력이 취소될 때 컨텍스트 초기화.
+     * 포커스 변경 시 컨텍스트 초기화.
      */
     fun resetContext() {
         lastConfirmedWord = ""
@@ -85,22 +109,32 @@ class WordPredictionEngine(private val context: Context) {
     /**
      * 나랏글 모드에서 다음에 눌릴 가능성이 높은 키의 히트 영역 확장 힌트를 반환.
      *
-     * @param currentInput 현재 입력 중인 단어 전체 (확정 + 조합 중)
-     * @param committedLength 확정된 음절 수
-     * @param composerState 현재 HangulComposer 조합 상태
+     * @param committedText 확정된 음절 부분 (조합 중인 자소 제외)
+     * @param syllableState 현재 NaratgulInputEngine의 SyllableState
      * @return keyId → 예측 가중치 (0.0 ~ 1.0)
      */
     fun getNextKeyHintsForNaratgul(
-        currentInput: String,
-        committedLength: Int,
-        composerState: NaratgulNextKeyPredictor.ComposerState
+        committedText: String,
+        syllableState: SyllableState
     ): Map<String, Float> {
-        if (!isReady || currentInput.isEmpty()) return emptyMap()
-        // Trie는 완성형 한글만 저장하므로, 조합 중인 낱자가 붙은 currentInput 대신
-        // 확정된 음절 수(committedLength)까지의 부분 문자열로 검색
-        val searchPrefix = currentInput.take(committedLength).ifEmpty { currentInput }
-        val candidates = getSuggestions(searchPrefix)
-        return naratgulPredictor.predict(candidates, committedLength, composerState)
+        if (!isReady || committedText.isEmpty() && syllableState.toComposingString().isEmpty()) return emptyMap()
+        val query = PredictionQuery(
+            committedText = committedText,
+            composingState = syllableState,
+            composingText = syllableState.toComposingString(),
+            language = InputLanguage.KOREAN,
+            maxResults = 5
+        )
+        val candidates = predictor.predict(query)
+        if (candidates.isEmpty()) return emptyMap()
+
+        val hints = predictor.nextKeyHints(candidates, naratgeulMapper)
+        return hints.keyHints
+            .mapNotNull { (char, weight) ->
+                val keyId = naratgeulCharToKeyId[char] ?: return@mapNotNull null
+                keyId to weight
+            }
+            .toMap()
     }
 
     /**
@@ -111,7 +145,18 @@ class WordPredictionEngine(private val context: Context) {
      */
     fun getNextKeyHintsForQwerty(currentInput: String): Map<String, Float> {
         if (!isReady || currentInput.isEmpty()) return emptyMap()
-        val candidates = getSuggestions(currentInput)
-        return qwertyPredictor.predict(candidates, currentInput.length)
+        val query = PredictionQuery(
+            committedText = currentInput,
+            composingState = SyllableState(),
+            composingText = "",
+            language = InputLanguage.ENGLISH,
+            maxResults = 5
+        )
+        val candidates = predictor.predict(query)
+        if (candidates.isEmpty()) return emptyMap()
+
+        val hints = predictor.nextKeyHints(candidates, qwertyMapper)
+        // QWERTY: Char는 소문자 알파벳, keyId도 동일
+        return hints.keyHints.mapKeys { (char, _) -> char.toString() }
     }
 }
