@@ -1,9 +1,9 @@
 package com.daram.keyboard.prediction
 
 import android.content.Context
-import `in`.daram.nutcracker.prediction.InputLanguage
-import `in`.daram.nutcracker.prediction.UserLearningDelegate
-import `in`.daram.nutcracker.prediction.UserWordEntry
+import com.daram.nutcracker.prediction.InputLanguage
+import com.daram.nutcracker.prediction.UserLearningDelegate
+import com.daram.nutcracker.prediction.UserWordEntry
 
 /**
  * SharedPreferences 기반 UserLearningDelegate 구현.

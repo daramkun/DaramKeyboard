@@ -1,17 +1,17 @@
 package com.daram.keyboard.model
 
-import `in`.daram.nutcracker.prediction.AmbiguityResolver
-import `in`.daram.nutcracker.prediction.KeyMapper
-import `in`.daram.nutcracker.prediction.mapper.CheonjiinKeyMapper
-import `in`.daram.nutcracker.prediction.mapper.DanmoemKeyMapper
-import `in`.daram.nutcracker.prediction.mapper.DubeolsikKeyMapper
-import `in`.daram.nutcracker.prediction.mapper.MotorolaKeyMapper
-import `in`.daram.nutcracker.prediction.mapper.NaratgeulKeyMapper
-import `in`.daram.nutcracker.prediction.mapper.SkyIIKeyMapper
-import `in`.daram.nutcracker.prediction.resolver.CheonjiinAmbiguityResolver
-import `in`.daram.nutcracker.prediction.resolver.DanmoemAmbiguityResolver
-import `in`.daram.nutcracker.prediction.resolver.MotorolaAmbiguityResolver
-import `in`.daram.nutcracker.prediction.resolver.SkyIIAmbiguityResolver
+import com.daram.nutcracker.prediction.AmbiguityResolver
+import com.daram.nutcracker.prediction.KeyMapper
+import com.daram.nutcracker.prediction.mapper.CheonjiinKeyMapper
+import com.daram.nutcracker.prediction.mapper.DanmoemKeyMapper
+import com.daram.nutcracker.prediction.mapper.DubeolsikKeyMapper
+import com.daram.nutcracker.prediction.mapper.MotorolaKeyMapper
+import com.daram.nutcracker.prediction.mapper.NaratgeulKeyMapper
+import com.daram.nutcracker.prediction.mapper.SkyIIKeyMapper
+import com.daram.nutcracker.prediction.resolver.CheonjiinAmbiguityResolver
+import com.daram.nutcracker.prediction.resolver.DanmoemAmbiguityResolver
+import com.daram.nutcracker.prediction.resolver.MotorolaAmbiguityResolver
+import com.daram.nutcracker.prediction.resolver.SkyIIAmbiguityResolver
 
 enum class KoreanKeyboardType(val prefValue: String, val displayName: String) {
     NARATGEUL("naratgeul", "나랏글"),

@@ -12,7 +12,6 @@ import com.daram.keyboard.feedback.HapticFeedbackManager
 import com.daram.keyboard.feedback.SoundFeedbackManager
 import com.daram.keyboard.input.HangulInputEngine
 import com.daram.keyboard.input.KeyboardFactory
-import com.daram.keyboard.input.NaratgulInputEngine
 import com.daram.keyboard.input.QwertyInputEngine
 import com.daram.keyboard.layout.EmojiLayout
 import com.daram.keyboard.layout.KeyboardLayout
@@ -23,8 +22,8 @@ import com.daram.keyboard.layout.SymbolLayout
 import com.daram.keyboard.model.KoreanKeyboardType
 import com.daram.keyboard.prediction.WordPredictionEngine
 import com.daram.keyboard.settings.PreferenceManager
-import `in`.daram.nutcracker.SyllableState
-import `in`.daram.nutcracker.prediction.InputLanguage
+import com.daram.nutcracker.SyllableState
+import com.daram.nutcracker.prediction.InputLanguage
 import com.daram.keyboard.theme.ThemeManager
 import com.daram.keyboard.view.CandidateBarView
 import com.daram.keyboard.view.EmojiKeyboardView
@@ -43,7 +42,7 @@ class DaramInputMethodService : InputMethodService() {
     private val qwertyEngine = QwertyInputEngine()
 
     /** 현재 활성 한글 입력 엔진 (자판 타입에 따라 교체됨) */
-    private var koreanEngine: HangulInputEngine = NaratgulInputEngine()
+    private var koreanEngine: HangulInputEngine = KeyboardFactory.createKorean(KoreanKeyboardType.NARATGEUL).second
     /** 현재 활성 한글 레이아웃 */
     private var koreanLayout: KeyboardLayout = NaratgulLayout
 

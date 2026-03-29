@@ -18,7 +18,6 @@ import com.daram.keyboard.hittarget.HitTargetManager
 import com.daram.keyboard.settings.PreferenceManager
 import com.daram.keyboard.input.HangulInputEngine
 import com.daram.keyboard.input.InputEngine
-import com.daram.keyboard.input.NaratgulInputEngine
 import com.daram.keyboard.input.QwertyInputEngine
 import com.daram.keyboard.input.ShiftState
 import com.daram.keyboard.layout.EmojiLayout
@@ -32,7 +31,7 @@ import com.daram.keyboard.model.Key
 import com.daram.keyboard.model.KeyAction
 import com.daram.keyboard.model.KeyStyle
 import com.daram.keyboard.theme.KeyboardTheme
-import `in`.daram.nutcracker.SyllableState
+import com.daram.nutcracker.SyllableState
 
 class KeyboardView(
     context: Context,

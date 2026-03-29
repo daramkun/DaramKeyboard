@@ -5,16 +5,16 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import `in`.daram.nutcracker.SyllableState
-import `in`.daram.nutcracker.prediction.AmbiguityResolver
-import `in`.daram.nutcracker.prediction.DefaultWordPredictor
-import `in`.daram.nutcracker.prediction.InputLanguage
-import `in`.daram.nutcracker.prediction.KeyMapper
-import `in`.daram.nutcracker.prediction.PredictionQuery
-import `in`.daram.nutcracker.prediction.mapper.NaratgeulKeyMapper
-import `in`.daram.nutcracker.prediction.mapper.QwertyKeyMapper
-import `in`.daram.nutcracker.prediction.trie.TrieDictionary
-import `in`.daram.nutcracker.prediction.WordEntry
+import com.daram.nutcracker.SyllableState
+import com.daram.nutcracker.prediction.AmbiguityResolver
+import com.daram.nutcracker.prediction.BundledDictionary
+import com.daram.nutcracker.prediction.DefaultWordPredictor
+import com.daram.nutcracker.prediction.InputLanguage
+import com.daram.nutcracker.prediction.KeyMapper
+import com.daram.nutcracker.prediction.PredictionQuery
+import com.daram.nutcracker.prediction.mapper.NaratgeulKeyMapper
+import com.daram.nutcracker.prediction.mapper.QwertyKeyMapper
+import com.daram.nutcracker.prediction.trie.TrieDictionary
 
 class WordPredictionEngine(private val context: Context) {
 
@@ -40,39 +40,19 @@ class WordPredictionEngine(private val context: Context) {
     private val scope = CoroutineScope(Dispatchers.IO)
 
     /**
-     * 비동기 초기화: 한국어/영어 사전 로드 후 Trie에 반영.
+     * 비동기 초기화: nutcracker 번들 사전을 Trie에 반영.
      * @param onReady 준비 완료 시 Main 스레드에서 호출되는 콜백
      */
     fun init(onReady: () -> Unit = {}) {
         scope.launch {
-            val koEntries = loadDictionary("dictionary_ko.txt")
-            koreanDict.initialize(koEntries)
-            val enEntries = loadDictionary("dictionary_en.txt")
-            if (enEntries.isNotEmpty()) englishDict.initialize(enEntries)
+            koreanDict.initialize(BundledDictionary.getWords(InputLanguage.KOREAN))
+            englishDict.initialize(BundledDictionary.getWords(InputLanguage.ENGLISH))
 
             withContext(Dispatchers.Main) {
                 isReady = true
                 onReady()
             }
         }
-    }
-
-    private fun loadDictionary(fileName: String): List<WordEntry> {
-        return try {
-            context.assets.open(fileName).bufferedReader().use { reader ->
-                reader.lineSequence()
-                    .map { it.trim() }
-                    .filter { it.isNotEmpty() }
-                    .mapIndexed { idx, line ->
-                        // "단어 빈도수" 형식 지원, 없으면 역순 인덱스 기반 점수
-                        val parts = line.split('\t', ' ')
-                        val word = parts[0]
-                        val freq = parts.getOrNull(1)?.toIntOrNull() ?: (100_000 - idx).coerceAtLeast(1)
-                        WordEntry(word, freq)
-                    }
-                    .toList()
-            }
-        } catch (_: Exception) { emptyList() }
     }
 
     /**

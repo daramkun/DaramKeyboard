@@ -7,12 +7,12 @@ import com.daram.keyboard.layout.MotorolaLayout
 import com.daram.keyboard.layout.NaratgulLayout
 import com.daram.keyboard.layout.SkyIILayout
 import com.daram.keyboard.model.KoreanKeyboardType
-import `in`.daram.nutcracker.automata.CheonjiinAutomata
-import `in`.daram.nutcracker.automata.DanmoemAutomata
-import `in`.daram.nutcracker.automata.DubeolsikAutomata
-import `in`.daram.nutcracker.automata.MotorolaAutomata
-import `in`.daram.nutcracker.automata.NaratgeulAutomata
-import `in`.daram.nutcracker.automata.SkyIIAutomata
+import com.daram.nutcracker.automata.CheonjiinAutomata
+import com.daram.nutcracker.automata.DanmoemAutomata
+import com.daram.nutcracker.automata.DubeolsikAutomata
+import com.daram.nutcracker.automata.MotorolaAutomata
+import com.daram.nutcracker.automata.NaratgeulAutomata
+import com.daram.nutcracker.automata.SkyIIAutomata
 
 object KeyboardFactory {
 

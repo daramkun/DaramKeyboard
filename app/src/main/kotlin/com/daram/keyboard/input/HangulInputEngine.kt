@@ -2,11 +2,11 @@ package com.daram.keyboard.input
 
 import android.view.inputmethod.InputConnection
 import com.daram.keyboard.model.KeyAction
-import `in`.daram.nutcracker.KeyInput
-import `in`.daram.nutcracker.SpecialKey
-import `in`.daram.nutcracker.SyllableState
-import `in`.daram.nutcracker.toComposingString
-import `in`.daram.nutcracker.HangulAutomata
+import com.daram.nutcracker.KeyInput
+import com.daram.nutcracker.SpecialKey
+import com.daram.nutcracker.SyllableState
+import com.daram.nutcracker.toComposingString
+import com.daram.nutcracker.HangulAutomata
 
 /**
  * 모든 한글 입력 엔진의 공통 기반 클래스.
