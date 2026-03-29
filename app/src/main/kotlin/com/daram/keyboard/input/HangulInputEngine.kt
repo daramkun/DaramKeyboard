@@ -16,19 +16,20 @@ import `in`.daram.nutcracker.HangulAutomata
  * @param automata  nutcracker HangulAutomata 구현체 (NaratgeulAutomata, CheonjiinAutomata 등)
  * @param hasShift  두벌식·단모음처럼 Shift 키가 쌍자음 전환에 필요한 경우 true
  */
-open class HangulInputEngine(
+class HangulInputEngine(
     private val automata: HangulAutomata,
     val hasShift: Boolean = false
 ) : InputEngine {
 
     var shiftState: ShiftState = ShiftState.OFF
-        protected set
 
     /** 자소/음절이 commit될 때 외부에서 추적하는 콜백 */
     var onTextCommitted: ((String) -> Unit)? = null
 
-    /** 마지막으로 입력된 자소 (히트 타겟 조정용). 서브클래스에서 오버라이드 가능 */
-    open val lastInputJamo: Char? get() = null
+    private var _lastInputJamo: Char? = null
+
+    /** 마지막으로 입력된 자소 (히트 타겟 조정용) */
+    val lastInputJamo: Char? get() = _lastInputJamo
 
     private var state: SyllableState = automata.initialState()
 
@@ -44,8 +45,12 @@ open class HangulInputEngine(
                     action.char.uppercaseChar() else action.char
                 processInput(KeyInput.Char(ch), inputConnection)
                 if (hasShift && shiftState == ShiftState.ONCE) shiftState = ShiftState.OFF
+                _lastInputJamo = decomposeLastJamo(state.toComposingString().lastOrNull())
             }
-            is KeyAction.TypeHangul -> processInput(KeyInput.Char(action.jamo), inputConnection)
+            is KeyAction.TypeHangul -> {
+                processInput(KeyInput.Char(action.jamo), inputConnection)
+                _lastInputJamo = decomposeLastJamo(state.toComposingString().lastOrNull())
+            }
             is KeyAction.AddStroke  -> processInput(KeyInput.Char('*'), inputConnection)
             is KeyAction.ToggleDouble -> processInput(KeyInput.Char('#'), inputConnection)
             is KeyAction.Backspace -> {
@@ -63,21 +68,25 @@ open class HangulInputEngine(
                 }
             }
             is KeyAction.Space -> {
+                _lastInputJamo = null
                 val flushed = flushAndCommit(inputConnection)
                 if (flushed.isNotEmpty()) onTextCommitted?.invoke(flushed)
                 inputConnection.commitText(" ", 1)
             }
             is KeyAction.Enter -> {
+                _lastInputJamo = null
                 val flushed = flushAndCommit(inputConnection)
                 if (flushed.isNotEmpty()) onTextCommitted?.invoke(flushed)
                 inputConnection.commitText("\n", 1)
             }
             is KeyAction.TypeText -> {
+                _lastInputJamo = null
                 val flushed = flushAndCommit(inputConnection)
                 inputConnection.commitText(action.text, 1)
                 onTextCommitted?.invoke(flushed + action.text)
             }
             is KeyAction.TypeNumber -> {
+                _lastInputJamo = null
                 val flushed = flushAndCommit(inputConnection)
                 inputConnection.commitText(action.digit.toString(), 1)
                 onTextCommitted?.invoke(flushed + action.digit.toString())
@@ -85,7 +94,7 @@ open class HangulInputEngine(
             is KeyAction.Shift -> {
                 if (hasShift) shiftState = shiftState.next()
             }
-            else -> {}
+            else -> { _lastInputJamo = null }
         }
     }
 
@@ -123,5 +132,30 @@ open class HangulInputEngine(
     override fun reset() {
         state = automata.initialState()
         shiftState = ShiftState.OFF
+        _lastInputJamo = null
+    }
+
+    private fun decomposeLastJamo(c: Char?): Char? {
+        c ?: return null
+        val code = c.code
+        return when {
+            code in 0xAC00..0xD7A3 -> {
+                val offset = code - 0xAC00
+                val jongIndex = offset % 28
+                val jungIndex = (offset / 28) % 21
+                val jongseongList = charArrayOf(
+                    '\u0000','ㄱ','ㄲ','ㄳ','ㄴ','ㄵ','ㄶ','ㄷ','ㄹ','ㄺ',
+                    'ㄻ','ㄼ','ㄽ','ㄾ','ㄿ','ㅀ','ㅁ','ㅂ','ㅄ','ㅅ',
+                    'ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'
+                )
+                val jungseongList = charArrayOf(
+                    'ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ',
+                    'ㅘ','ㅙ','ㅚ','ㅛ','ㅜ','ㅝ','ㅞ','ㅟ','ㅠ','ㅡ','ㅢ','ㅣ'
+                )
+                if (jongIndex != 0) jongseongList[jongIndex] else jungseongList[jungIndex]
+            }
+            code in 0x3131..0x3163 -> c
+            else -> null
+        }
     }
 }

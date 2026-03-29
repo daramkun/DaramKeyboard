@@ -11,6 +11,7 @@ import `in`.daram.nutcracker.automata.CheonjiinAutomata
 import `in`.daram.nutcracker.automata.DanmoemAutomata
 import `in`.daram.nutcracker.automata.DubeolsikAutomata
 import `in`.daram.nutcracker.automata.MotorolaAutomata
+import `in`.daram.nutcracker.automata.NaratgeulAutomata
 import `in`.daram.nutcracker.automata.SkyIIAutomata
 
 object KeyboardFactory {
@@ -18,7 +19,7 @@ object KeyboardFactory {
     /** 한국어 키보드 타입에 맞는 레이아웃과 입력 엔진 쌍을 반환 */
     fun createKorean(type: KoreanKeyboardType): Pair<KeyboardLayout, HangulInputEngine> {
         return when (type) {
-            KoreanKeyboardType.NARATGEUL -> NaratgulLayout to NaratgulInputEngine()
+            KoreanKeyboardType.NARATGEUL -> NaratgulLayout to HangulInputEngine(NaratgeulAutomata())
             KoreanKeyboardType.CHEONJIIN -> CheonjiinLayout to HangulInputEngine(CheonjiinAutomata())
             KoreanKeyboardType.SKY_II    -> SkyIILayout to HangulInputEngine(SkyIIAutomata())
             KoreanKeyboardType.MOTOROLA  -> MotorolaLayout to HangulInputEngine(MotorolaAutomata())
