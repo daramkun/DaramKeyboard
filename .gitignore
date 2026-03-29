@@ -6,3 +6,4 @@ local.properties
 *.ipr
 *.iws
 app/build
+.DS_Store
