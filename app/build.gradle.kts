@@ -37,6 +37,16 @@ android {
     }
 }
 
+// nutcracker is a KMP library; exclude non-Android native platform artifacts
+// that JitPack includes in its metadata but are incompatible with Android builds.
+configurations.all {
+    exclude(group = "com.github.daramkun.nutcracker", module = "nutcracker-iosarm64")
+    exclude(group = "com.github.daramkun.nutcracker", module = "nutcracker-iossimulatorarm64")
+    exclude(group = "com.github.daramkun.nutcracker", module = "nutcracker-iosx64")
+    exclude(group = "com.github.daramkun.nutcracker", module = "nutcracker-macosarm64")
+    exclude(group = "com.github.daramkun.nutcracker", module = "nutcracker-macosx64")
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
