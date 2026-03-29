@@ -32,6 +32,7 @@ import com.daram.keyboard.model.Key
 import com.daram.keyboard.model.KeyAction
 import com.daram.keyboard.model.KeyStyle
 import com.daram.keyboard.theme.KeyboardTheme
+import `in`.daram.nutcracker.SyllableState
 
 class KeyboardView(
     context: Context,
@@ -39,8 +40,8 @@ class KeyboardView(
     private var inputEngine: InputEngine,
     private val onLayoutSwitch: (KeyboardLayout) -> Unit,
     private val onKeyPressed: () -> Unit = {},
-    /** 현재 입력 중인 단어 접두사 (단어 예측용) */
-    private val onComposingChanged: (String) -> Unit = {},
+    /** 현재 입력 중인 단어 예측용 콜백: 확정 부분, FSM 상태, 조합 중인 음절 */
+    private val onComposingChanged: (committedPart: String, syllableState: SyllableState, composingText: String) -> Unit = { _, _, _ -> },
     /** 스페이스/엔터로 단어가 완전히 확정될 때 */
     private val onWordCommitted: (String) -> Unit = {},
     /** 한국어 자판 종류 전환 요청 */
@@ -524,7 +525,8 @@ class KeyboardView(
                 onLayoutSwitch(SymbolLayout.QwertyPage1)
             }
             is KeyAction.SymbolNextPage -> {
-                val next = if (layout is SymbolLayout) SymbolLayout.nextPage(layout)
+                val current = layout
+                val next = if (current is SymbolLayout) SymbolLayout.nextPage(current)
                            else SymbolLayout.Page1
                 onLayoutSwitch(next)
             }
@@ -554,21 +556,21 @@ class KeyboardView(
                 val word = currentWordBuffer.toString().trim()
                 currentWordBuffer.clear()
                 if (word.isNotEmpty()) onWordCommitted(word)
-                onComposingChanged("")
+                onComposingChanged("", SyllableState(), "")
             }
             is KeyAction.Enter -> {
                 inputEngine.processAction(action, ic)
                 val word = currentWordBuffer.toString().trim()
                 currentWordBuffer.clear()
                 if (word.isNotEmpty()) onWordCommitted(word)
-                onComposingChanged("")
+                onComposingChanged("", SyllableState(), "")
             }
             is KeyAction.TypeNumber -> {
                 val word = currentWordBuffer.toString().trim()
                 currentWordBuffer.clear()
                 if (word.isNotEmpty()) onWordCommitted(word)
                 inputEngine.processAction(action, ic)
-                onComposingChanged("")
+                onComposingChanged("", SyllableState(), "")
             }
             is KeyAction.Backspace -> {
                 // 단일 탭 처리 (롱프레스 반복은 scheduleBackspaceRepeat에서 처리)
@@ -592,8 +594,10 @@ class KeyboardView(
     }
 
     private fun notifyComposingChanged() {
-        val composingJamo = (inputEngine as? HangulInputEngine)?.getComposingText() ?: ""
-        onComposingChanged(currentWordBuffer.toString() + composingJamo)
+        val hangulEngine = inputEngine as? HangulInputEngine
+        val composingText = hangulEngine?.getComposingText() ?: ""
+        val syllableState = hangulEngine?.syllableState ?: SyllableState()
+        onComposingChanged(currentWordBuffer.toString(), syllableState, composingText)
     }
 
     /**

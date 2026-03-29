@@ -6,9 +6,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import `in`.daram.nutcracker.SyllableState
-import `in`.daram.nutcracker.toComposingString
+import `in`.daram.nutcracker.prediction.AmbiguityResolver
 import `in`.daram.nutcracker.prediction.DefaultWordPredictor
 import `in`.daram.nutcracker.prediction.InputLanguage
+import `in`.daram.nutcracker.prediction.KeyMapper
 import `in`.daram.nutcracker.prediction.PredictionQuery
 import `in`.daram.nutcracker.prediction.mapper.NaratgeulKeyMapper
 import `in`.daram.nutcracker.prediction.mapper.QwertyKeyMapper
@@ -19,17 +20,18 @@ class WordPredictionEngine(private val context: Context) {
 
     private val koreanDict = TrieDictionary(InputLanguage.KOREAN)
     private val englishDict = TrieDictionary(InputLanguage.ENGLISH)
-    private val predictor = DefaultWordPredictor(listOf(koreanDict, englishDict))
+    private val learningDelegate = SharedPrefsUserLearningDelegate(context)
+    private val predictor = DefaultWordPredictor(listOf(koreanDict, englishDict), learningDelegate)
 
     private val naratgeulMapper = NaratgeulKeyMapper()
     private val qwertyMapper = QwertyKeyMapper()
 
-    /** 나랏글 물리 키 char → keyId 변환 맵 */
-    private val naratgeulCharToKeyId = mapOf(
-        'ㄱ' to "ga", 'ㄴ' to "na", 'ㅏ' to "ao",
-        'ㄹ' to "ra", 'ㅁ' to "ma", 'ㅗ' to "ou",
-        'ㅅ' to "sa", 'ㅇ' to "eo", 'ㅣ' to "i",
-        'ㅡ' to "eu"
+    /** 나랏글 물리 키 char ('1'~'0') → keyId 변환 맵 */
+    private val naratgeulPhysicalToKeyId = mapOf(
+        '1' to "ga", '2' to "na", '3' to "ao",
+        '4' to "ra", '5' to "ma", '6' to "ou",
+        '7' to "sa", '8' to "eo", '9' to "i",
+        '0' to "eu"
     )
 
     private var lastConfirmedWord = ""
@@ -74,26 +76,45 @@ class WordPredictionEngine(private val context: Context) {
     }
 
     /**
-     * 현재 입력 접두사로 후보 단어를 최대 3개 반환.
+     * 현재 입력 상태로 후보 단어를 최대 3개 반환.
+     *
+     * @param committedText 확정된 텍스트 (조합 중인 음절 제외)
+     * @param composingState 현재 FSM 상태 (HangulInputEngine.syllableState)
+     * @param composingText 조합 중인 음절 문자열
+     * @param language 입력 언어
      */
-    fun getSuggestions(currentInput: String): List<String> {
-        if (!isReady || currentInput.isEmpty()) return emptyList()
+    fun getSuggestions(
+        committedText: String,
+        composingState: SyllableState = SyllableState(),
+        composingText: String = "",
+        language: InputLanguage = InputLanguage.KOREAN
+    ): List<String> {
+        if (!isReady || committedText.isEmpty() && composingText.isEmpty()) return emptyList()
         val query = PredictionQuery(
-            committedText = currentInput,
-            composingState = SyllableState(),
-            composingText = "",
-            language = InputLanguage.KOREAN,
+            committedText = committedText,
+            composingState = composingState,
+            composingText = composingText,
+            language = language,
             maxResults = 10
         )
         return predictor.predict(query).map { it.word }.take(3)
     }
 
     /**
-     * 사용자가 단어를 확정했을 때 호출.
+     * 사용자가 예측 후보를 선택했을 때 호출.
      */
-    fun onWordConfirmed(word: String) {
+    fun onCandidateSelected(word: String, language: InputLanguage = InputLanguage.KOREAN) {
         if (word.isBlank()) return
-        predictor.onWordCommitted(word, InputLanguage.KOREAN, lastConfirmedWord)
+        predictor.onCandidateSelected(word, language, lastConfirmedWord)
+        lastConfirmedWord = word
+    }
+
+    /**
+     * 사용자가 직접 타이핑해서 단어를 확정했을 때 호출 (스페이스/엔터).
+     */
+    fun onWordCommitted(word: String, language: InputLanguage = InputLanguage.KOREAN) {
+        if (word.isBlank()) return
+        predictor.onWordCommitted(word, language, lastConfirmedWord)
         lastConfirmedWord = word
     }
 
@@ -107,40 +128,52 @@ class WordPredictionEngine(private val context: Context) {
     fun isReady(): Boolean = isReady
 
     /**
-     * 나랏글 모드에서 다음에 눌릴 가능성이 높은 키의 히트 영역 확장 힌트를 반환.
+     * 한글 자판에서 다음에 눌릴 가능성이 높은 키의 히트 영역 확장 힌트를 반환.
      *
-     * @param committedText 확정된 음절 부분 (조합 중인 자소 제외)
-     * @param syllableState 현재 NaratgulInputEngine의 SyllableState
+     * @param committedText 확정된 텍스트 (조합 중인 음절 제외)
+     * @param syllableState 현재 HangulInputEngine의 SyllableState
+     * @param composingText 조합 중인 음절 문자열
+     * @param keyMapper 현재 자판의 KeyMapper
+     * @param ambiguityResolver 비결정적 자판(천지인/SkyII 등)의 AmbiguityResolver; null이면 미확정 없음
      * @return keyId → 예측 가중치 (0.0 ~ 1.0)
      */
-    fun getNextKeyHintsForNaratgul(
+    fun getNextKeyHintsForHangul(
         committedText: String,
-        syllableState: SyllableState
+        syllableState: SyllableState,
+        composingText: String,
+        keyMapper: KeyMapper,
+        ambiguityResolver: AmbiguityResolver? = null
     ): Map<String, Float> {
-        if (!isReady || committedText.isEmpty() && syllableState.toComposingString().isEmpty()) return emptyMap()
+        if (!isReady || committedText.isEmpty() && composingText.isEmpty()) return emptyMap()
+        val pendingJamos = ambiguityResolver?.pendingJamos(syllableState) ?: emptyList()
         val query = PredictionQuery(
             committedText = committedText,
             composingState = syllableState,
-            composingText = syllableState.toComposingString(),
+            composingText = composingText,
             language = InputLanguage.KOREAN,
+            pendingAmbiguous = pendingJamos.isNotEmpty(),
+            candidateJamos = pendingJamos,
             maxResults = 5
         )
         val candidates = predictor.predict(query)
         if (candidates.isEmpty()) return emptyMap()
 
-        val hints = predictor.nextKeyHints(candidates, naratgeulMapper)
-        return hints.keyHints
-            .mapNotNull { (char, weight) ->
-                val keyId = naratgeulCharToKeyId[char] ?: return@mapNotNull null
-                keyId to weight
-            }
-            .toMap()
+        val hints = predictor.nextKeyHints(candidates, keyMapper)
+        return if (keyMapper.layoutName == naratgeulMapper.layoutName) {
+            // 나랏글: 물리키 char('1'~'0') → keyId 변환 필요
+            hints.keyHints.mapNotNull { (char, weight) ->
+                naratgeulPhysicalToKeyId[char]?.let { it to weight }
+            }.toMap()
+        } else {
+            // 두벌식/천지인 등: 물리키 char == keyId (소문자 알파벳 또는 숫자)
+            hints.keyHints.mapKeys { (char, _) -> char.toString() }
+        }
     }
 
     /**
      * QWERTY 모드에서 다음에 눌릴 가능성이 높은 키의 히트 영역 확장 힌트를 반환.
      *
-     * @param currentInput 현재 타이핑 중인 접두사
+     * @param currentInput 현재 타이핑 중인 접두사 (committed + composing)
      * @return keyId → 예측 가중치 (0.0 ~ 1.0)
      */
     fun getNextKeyHintsForQwerty(currentInput: String): Map<String, Float> {
@@ -156,7 +189,6 @@ class WordPredictionEngine(private val context: Context) {
         if (candidates.isEmpty()) return emptyMap()
 
         val hints = predictor.nextKeyHints(candidates, qwertyMapper)
-        // QWERTY: Char는 소문자 알파벳, keyId도 동일
         return hints.keyHints.mapKeys { (char, _) -> char.toString() }
     }
 }

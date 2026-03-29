@@ -23,6 +23,8 @@ import com.daram.keyboard.layout.SymbolLayout
 import com.daram.keyboard.model.KoreanKeyboardType
 import com.daram.keyboard.prediction.WordPredictionEngine
 import com.daram.keyboard.settings.PreferenceManager
+import `in`.daram.nutcracker.SyllableState
+import `in`.daram.nutcracker.prediction.InputLanguage
 import com.daram.keyboard.theme.ThemeManager
 import com.daram.keyboard.view.CandidateBarView
 import com.daram.keyboard.view.EmojiKeyboardView
@@ -76,7 +78,7 @@ class DaramInputMethodService : InputMethodService() {
             inputEngine = koreanEngine,
             onLayoutSwitch = { newLayout -> switchLayout(newLayout) },
             onKeyPressed = { performFeedback() },
-            onComposingChanged = { composing -> onComposingChanged(composing) },
+            onComposingChanged = { committed, state, composing -> onComposingChanged(committed, state, composing) },
             onWordCommitted = { word -> onWordCommitted(word) },
             onSwitchKoreanType = { switchKoreanType() },
             onSwitchToNextIme = { switchToNextInputMethod(false) }
@@ -305,16 +307,17 @@ class DaramInputMethodService : InputMethodService() {
         if (PreferenceManager.isSoundEnabled(this)) soundManager.playKeyClick()
     }
 
-    private fun onComposingChanged(composing: String) {
-        currentComposingWord = composing
-        updateCandidates(composing)
-        updateNextKeyHints(composing)
+    private fun onComposingChanged(committed: String, state: SyllableState, composing: String) {
+        currentComposingWord = committed + composing
+        updateCandidates(committed, state, composing)
+        updateNextKeyHints(committed, state, composing)
     }
 
     private fun onWordCommitted(word: String) {
-        predictionEngine.onWordConfirmed(word)
+        val language = if (currentLayout == QwertyLayout) InputLanguage.ENGLISH else InputLanguage.KOREAN
+        predictionEngine.onWordCommitted(word, language)
         currentComposingWord = ""
-        updateCandidates("")
+        updateCandidates("", SyllableState(), "")
         if (::keyboardView.isInitialized) keyboardView.applyNextKeyHints(emptyMap())
     }
 
@@ -327,44 +330,44 @@ class DaramInputMethodService : InputMethodService() {
         ic.commitText(word, 1)
         koreanEngine.reset()
         qwertyEngine.reset()
-        predictionEngine.onWordConfirmed(word)
+        val language = if (currentLayout == QwertyLayout) InputLanguage.ENGLISH else InputLanguage.KOREAN
+        predictionEngine.onCandidateSelected(word, language)
         currentComposingWord = ""
-        updateCandidates("")
+        updateCandidates("", SyllableState(), "")
         performFeedback()
     }
 
-    private fun updateCandidates(prefix: String) {
+    private fun updateCandidates(committed: String, state: SyllableState, composing: String) {
         if (!::candidateBarView.isInitialized) return
         if (!PreferenceManager.isWordPredictionEnabled(this)) {
             candidateBarView.updateCandidates(emptyList())
             return
         }
-        val suggestions = predictionEngine.getSuggestions(prefix)
+        val language = if (currentLayout == QwertyLayout) InputLanguage.ENGLISH else InputLanguage.KOREAN
+        val suggestions = predictionEngine.getSuggestions(committed, state, composing, language)
         candidateBarView.updateCandidates(suggestions)
     }
 
-    private fun updateNextKeyHints(composing: String) {
+    private fun updateNextKeyHints(committed: String, state: SyllableState, composing: String) {
         if (!::keyboardView.isInitialized || !predictionEngine.isReady()) return
         if (!PreferenceManager.isWordPredictionEnabled(this)) {
             keyboardView.applyNextKeyHints(emptyMap())
             return
         }
 
-        val isKoreanLayout = currentLayout.isKorean()
-
         val hints: Map<String, Float> = when {
-            isKoreanLayout && koreanEngine is NaratgulInputEngine -> {
-                val composingText = koreanEngine.getComposingText()
-                val committedPart = if (composingText.isNotEmpty() && composing.endsWith(composingText)) {
-                    composing.dropLast(composingText.length)
-                } else {
-                    composing
-                }
-                predictionEngine.getNextKeyHintsForNaratgul(committedPart, koreanEngine.syllableState)
+            currentLayout.isKorean() -> {
+                val type = PreferenceManager.getKoreanKeyboardType(this)
+                predictionEngine.getNextKeyHintsForHangul(
+                    committedText = committed,
+                    syllableState = state,
+                    composingText = composing,
+                    keyMapper = type.keyMapper(),
+                    ambiguityResolver = type.ambiguityResolver()
+                )
             }
-            currentLayout == QwertyLayout -> {
-                predictionEngine.getNextKeyHintsForQwerty(composing)
-            }
+            currentLayout == QwertyLayout ->
+                predictionEngine.getNextKeyHintsForQwerty(committed + composing)
             else -> emptyMap()
         }
 
