@@ -4,6 +4,7 @@ import android.content.res.Configuration
 import android.inputmethodservice.InputMethodService
 import android.os.Handler
 import android.os.Looper
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
@@ -15,6 +16,8 @@ import com.daram.keyboard.feedback.HapticFeedbackManager
 import com.daram.keyboard.feedback.SoundFeedbackManager
 import com.daram.keyboard.input.HangulInputEngine
 import com.daram.keyboard.input.KeyboardFactory
+import com.daram.keyboard.input.KoreanDubeolsikHardwareKeyMapper
+import com.daram.keyboard.input.QwertyHardwareKeyMapper
 import com.daram.keyboard.input.QwertyInputEngine
 import com.daram.keyboard.layout.EmojiLayout
 import com.daram.keyboard.layout.KeyboardLayout
@@ -68,6 +71,38 @@ class DaramInputMethodService : InputMethodService() {
     }
 
     override fun onEvaluateFullscreenMode(): Boolean = false
+
+    override fun onEvaluateInputViewShown(): Boolean {
+        if (!super.onEvaluateInputViewShown()) return false
+        // 하드웨어 키보드가 연결되어 있고 설정이 켜져 있으면 소프트 키보드 숨김
+        if (PreferenceManager.isHideKeyboardOnHardware(this) && isHardwareKeyboardConnected()) return false
+        return true
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        // 언어 전환 키: 다음 IME로 전환
+        if (keyCode == KeyEvent.KEYCODE_LANGUAGE_SWITCH) {
+            switchToNextInputMethod(false)
+            return true
+        }
+        if (!::keyboardView.isInitialized) return super.onKeyDown(keyCode, event)
+
+        val mapper = if (currentLayout == QwertyLayout) QwertyHardwareKeyMapper
+                     else KoreanDubeolsikHardwareKeyMapper
+        val shift = if (currentLayout == QwertyLayout) qwertyEngine.getShiftState()
+                    else koreanEngine.shiftState
+        val action = mapper.mapKeyCode(keyCode, event, shift)
+            ?: return super.onKeyDown(keyCode, event)
+
+        keyboardView.handleHardwareKeyAction(action)
+        return true
+    }
+
+    private fun isHardwareKeyboardConnected(): Boolean {
+        val config = resources.configuration
+        return config.keyboard != Configuration.KEYBOARD_NOKEYS &&
+               config.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_NO
+    }
 
     override fun onCreateInputView(): View {
         val theme = ThemeManager.resolveTheme(this, PreferenceManager.getTheme(this))

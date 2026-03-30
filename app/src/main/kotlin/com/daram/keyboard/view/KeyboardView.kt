@@ -665,4 +665,13 @@ class KeyboardView(
     fun applyNextKeyHints(hints: Map<String, Float>) {
         hitTargetManager.setNextKeyHints(hints)
     }
+
+    /**
+     * 하드웨어 키보드 입력을 터치 입력과 동일한 경로로 처리한다.
+     * DaramInputMethodService.onKeyDown()에서 호출.
+     */
+    fun handleHardwareKeyAction(action: KeyAction) {
+        handleKeyAction(action)
+        onKeyPressed()
+    }
 }

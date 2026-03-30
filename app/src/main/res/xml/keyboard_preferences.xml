@@ -77,6 +77,12 @@
         android:summary="@string/pref_orientation_layout_summary"
         android:defaultValue="false" />
 
+    <SwitchPreferenceCompat
+        android:key="hide_keyboard_on_hardware"
+        android:title="@string/pref_hide_keyboard_on_hardware_title"
+        android:summary="@string/pref_hide_keyboard_on_hardware_summary"
+        android:defaultValue="false" />
+
     <!-- 디버그 -->
     <SwitchPreferenceCompat
         android:key="show_hit_targets"

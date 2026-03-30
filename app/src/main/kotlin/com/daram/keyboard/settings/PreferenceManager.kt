@@ -17,6 +17,7 @@ object PreferenceManager {
     private const val KEY_AUTO_PERIOD_DOUBLE_SPACE = "auto_period_double_space"
     private const val KEY_AUTO_COMPOSITION_TIMEOUT = "auto_composition_timeout"
     private const val KEY_ORIENTATION_LAYOUT = "orientation_layout"
+    private const val KEY_HIDE_KEYBOARD_ON_HARDWARE = "hide_keyboard_on_hardware"
 
     /** 진동 켜짐 여부: intensity가 "off"가 아니면 켜짐 */
     fun isHapticEnabled(context: Context): Boolean =
@@ -65,6 +66,11 @@ object PreferenceManager {
     fun getAutoCompositionTimeout(context: Context): Int =
         AndroidPreferenceManager.getDefaultSharedPreferences(context)
             .getString(KEY_AUTO_COMPOSITION_TIMEOUT, "0")?.toIntOrNull() ?: 0
+
+    /** 하드웨어 키보드 연결 시 소프트 키보드를 자동으로 숨길지 여부 */
+    fun isHideKeyboardOnHardware(context: Context): Boolean =
+        AndroidPreferenceManager.getDefaultSharedPreferences(context)
+            .getBoolean(KEY_HIDE_KEYBOARD_ON_HARDWARE, false)
 
     /** 화면 방향에 따라 기본 레이아웃을 자동 변경할지 여부 */
     fun isOrientationLayoutEnabled(context: Context): Boolean =
