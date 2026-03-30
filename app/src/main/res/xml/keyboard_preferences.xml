@@ -1,15 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <SwitchPreferenceCompat
-        android:key="haptic_enabled"
-        android:title="@string/pref_haptic_title"
-        android:defaultValue="true" />
-
-    <SwitchPreferenceCompat
-        android:key="sound_enabled"
-        android:title="@string/pref_sound_title"
-        android:defaultValue="false" />
+    <!-- 키보드 외관 -->
+    <ListPreference
+        android:key="keyboard_height"
+        android:title="@string/pref_keyboard_height_title"
+        android:entries="@array/keyboard_height_entries"
+        android:entryValues="@array/keyboard_height_values"
+        android:defaultValue="medium" />
 
     <ListPreference
         android:key="theme"
@@ -19,21 +17,71 @@
         android:defaultValue="auto" />
 
     <SwitchPreferenceCompat
+        android:key="key_popup"
+        android:title="@string/pref_key_popup_title"
+        android:summary="@string/pref_key_popup_summary"
+        android:defaultValue="true" />
+
+    <!-- 피드백 -->
+    <ListPreference
+        android:key="haptic_intensity"
+        android:title="@string/pref_haptic_intensity_title"
+        android:entries="@array/haptic_intensity_entries"
+        android:entryValues="@array/haptic_intensity_values"
+        android:defaultValue="medium" />
+
+    <SwitchPreferenceCompat
+        android:key="sound_enabled"
+        android:title="@string/pref_sound_title"
+        android:defaultValue="false" />
+
+    <!-- 입력 -->
+    <SwitchPreferenceCompat
         android:key="word_prediction"
         android:title="@string/pref_word_prediction_title"
         android:defaultValue="true" />
 
     <SwitchPreferenceCompat
-        android:key="show_hit_targets"
-        android:title="@string/pref_show_hit_targets_title"
-        android:summary="@string/pref_show_hit_targets_summary"
+        android:key="auto_period_double_space"
+        android:title="@string/pref_auto_period_double_space_title"
+        android:summary="@string/pref_auto_period_double_space_summary"
         android:defaultValue="false" />
 
+    <ListPreference
+        android:key="auto_composition_timeout"
+        android:title="@string/pref_auto_composition_timeout_title"
+        android:summary="@string/pref_auto_composition_timeout_summary"
+        android:entries="@array/auto_composition_timeout_entries"
+        android:entryValues="@array/auto_composition_timeout_values"
+        android:defaultValue="0" />
+
+    <!-- 이모지 -->
+    <ListPreference
+        android:key="emoji_skin_tone"
+        android:title="@string/pref_emoji_skin_tone_title"
+        android:entries="@array/emoji_skin_tone_entries"
+        android:entryValues="@array/emoji_skin_tone_values"
+        android:defaultValue="none" />
+
+    <!-- 자판 -->
     <ListPreference
         android:key="korean_keyboard_type"
         android:title="@string/pref_korean_keyboard_type_title"
         android:entries="@array/korean_keyboard_type_entries"
         android:entryValues="@array/korean_keyboard_type_values"
         android:defaultValue="naratgeul" />
+
+    <SwitchPreferenceCompat
+        android:key="orientation_layout"
+        android:title="@string/pref_orientation_layout_title"
+        android:summary="@string/pref_orientation_layout_summary"
+        android:defaultValue="false" />
+
+    <!-- 디버그 -->
+    <SwitchPreferenceCompat
+        android:key="show_hit_targets"
+        android:title="@string/pref_show_hit_targets_title"
+        android:summary="@string/pref_show_hit_targets_summary"
+        android:defaultValue="false" />
 
 </PreferenceScreen>

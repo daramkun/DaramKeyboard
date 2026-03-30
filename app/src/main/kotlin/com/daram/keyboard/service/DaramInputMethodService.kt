@@ -1,6 +1,9 @@
 package com.daram.keyboard.service
 
+import android.content.res.Configuration
 import android.inputmethodservice.InputMethodService
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
@@ -50,6 +53,10 @@ class DaramInputMethodService : InputMethodService() {
     private var currentComposingWord = ""
     private var isEmojiMode = false
     private var prevLayoutBeforeEmoji: KeyboardLayout = koreanLayout
+
+    // 자동 조합 완성 타이머
+    private val autoCompositionHandler = Handler(Looper.getMainLooper())
+    private var autoCompositionRunnable: Runnable? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -177,14 +184,28 @@ class DaramInputMethodService : InputMethodService() {
 
     private fun applySubtypeLayout(subtype: InputMethodSubtype?) {
         val isEnglish = subtype?.languageTag?.startsWith("en") == true
-        val targetLayout = if (isEnglish) QwertyLayout else koreanLayout
+        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        val useOrientationLayout = PreferenceManager.isOrientationLayoutEnabled(this)
+
+        val targetKoreanLayout: KeyboardLayout
+        val targetKoreanEngine: HangulInputEngine
+        if (isLandscape && useOrientationLayout && !isEnglish) {
+            val (layout, engine) = KeyboardFactory.createKorean(KoreanKeyboardType.DUBEOLSIK)
+            targetKoreanLayout = layout
+            targetKoreanEngine = engine
+        } else {
+            targetKoreanLayout = koreanLayout
+            targetKoreanEngine = koreanEngine
+        }
+
+        val targetLayout = if (isEnglish) QwertyLayout else targetKoreanLayout
         if (currentLayout == targetLayout) return
         if (isEmojiMode) {
             prevLayoutBeforeEmoji = targetLayout
             return
         }
         currentLayout = targetLayout
-        val newEngine = if (isEnglish) qwertyEngine else koreanEngine
+        val newEngine = if (isEnglish) qwertyEngine else targetKoreanEngine
         keyboardView.switchLayout(targetLayout, newEngine)
         keyboardView.inputConnection = currentInputConnection
         koreanEngine.reset()
@@ -247,6 +268,7 @@ class DaramInputMethodService : InputMethodService() {
     }
 
     override fun onDestroy() {
+        autoCompositionRunnable?.let { autoCompositionHandler.removeCallbacks(it) }
         soundManager.release()
         super.onDestroy()
     }
@@ -276,6 +298,7 @@ class DaramInputMethodService : InputMethodService() {
         keyboardView.visibility = View.GONE
         emojiKeyboardView.visibility = View.VISIBLE
         emojiKeyboardView.selectCategory(0)
+        emojiKeyboardView.setSkinTone(PreferenceManager.getEmojiSkinTone(this))
         val backLabel = currentLayout.returnButtonLabel
         emojiKeyboardView.setBackLabel(backLabel)
         performFeedback()
@@ -302,7 +325,8 @@ class DaramInputMethodService : InputMethodService() {
         this != QwertyLayout && this !is SymbolLayout && this != NumberLayout
 
     private fun performFeedback() {
-        if (PreferenceManager.isHapticEnabled(this)) hapticManager.performKeyClick()
+        val intensity = PreferenceManager.getHapticIntensity(this)
+        if (intensity != "off") hapticManager.performKeyClick(intensity)
         if (PreferenceManager.isSoundEnabled(this)) soundManager.playKeyClick()
     }
 
@@ -310,6 +334,29 @@ class DaramInputMethodService : InputMethodService() {
         currentComposingWord = committed + composing
         updateCandidates(committed, state, composing)
         updateNextKeyHints(committed, state, composing)
+        rescheduleAutoComposition(composing.isNotEmpty())
+    }
+
+    private fun rescheduleAutoComposition(hasComposing: Boolean) {
+        autoCompositionRunnable?.let { autoCompositionHandler.removeCallbacks(it) }
+        autoCompositionRunnable = null
+        if (!hasComposing) return
+        val timeoutMs = PreferenceManager.getAutoCompositionTimeout(this)
+        if (timeoutMs <= 0) return
+        autoCompositionRunnable = Runnable {
+            val ic = currentInputConnection ?: return@Runnable
+            ic.finishComposingText()
+            koreanEngine.reset()
+            val word = currentComposingWord.trim()
+            currentComposingWord = ""
+            if (word.isNotEmpty()) {
+                val language = com.daram.nutcracker.prediction.InputLanguage.KOREAN
+                predictionEngine.onWordCommitted(word, language)
+            }
+            updateCandidates("", SyllableState(), "")
+            if (::keyboardView.isInitialized) keyboardView.applyNextKeyHints(emptyMap())
+        }
+        autoCompositionHandler.postDelayed(autoCompositionRunnable!!, timeoutMs.toLong())
     }
 
     private fun onWordCommitted(word: String) {

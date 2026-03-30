@@ -6,13 +6,81 @@
     <string name="subtype_ko">한국어</string>
     <string name="subtype_en">English (US)</string>
 
-    <string name="pref_haptic_title">키 진동</string>
+    <string name="pref_haptic_intensity_title">키 진동 강도</string>
     <string name="pref_sound_title">키 소리</string>
     <string name="pref_theme_title">테마</string>
     <string name="pref_word_prediction_title">단어 예측</string>
     <string name="pref_show_hit_targets_title">히트 타겟 시각화</string>
     <string name="pref_show_hit_targets_summary">각 키의 실제 터치 인식 범위를 화면에 표시합니다</string>
     <string name="pref_korean_keyboard_type_title">한국어 자판</string>
+    <string name="pref_keyboard_height_title">키보드 높이</string>
+    <string name="pref_key_popup_title">키 팝업</string>
+    <string name="pref_key_popup_summary">키를 누를 때 해당 키를 크게 표시합니다</string>
+    <string name="pref_emoji_skin_tone_title">사람 이모지 기본 피부색</string>
+    <string name="pref_auto_period_double_space_title">온점 자동 입력</string>
+    <string name="pref_auto_period_double_space_summary">스페이스바를 두 번 연속 누르면 자동으로 온점(.)을 추가합니다</string>
+    <string name="pref_auto_composition_timeout_title">자동 조합 완성</string>
+    <string name="pref_auto_composition_timeout_summary">일정 시간 입력이 없으면 조합 중인 글자를 자동으로 완성합니다</string>
+    <string name="pref_orientation_layout_title">방향별 키보드 자동 전환</string>
+    <string name="pref_orientation_layout_summary">가로 방향 시 두벌식 레이아웃으로 자동 전환합니다</string>
+
+    <string-array name="haptic_intensity_entries">
+        <item>끄기</item>
+        <item>약하게</item>
+        <item>보통</item>
+        <item>강하게</item>
+    </string-array>
+
+    <string-array name="haptic_intensity_values">
+        <item>off</item>
+        <item>weak</item>
+        <item>medium</item>
+        <item>strong</item>
+    </string-array>
+
+    <string-array name="keyboard_height_entries">
+        <item>작게 (240dp)</item>
+        <item>보통 (280dp)</item>
+        <item>크게 (320dp)</item>
+    </string-array>
+
+    <string-array name="keyboard_height_values">
+        <item>small</item>
+        <item>medium</item>
+        <item>large</item>
+    </string-array>
+
+    <string-array name="emoji_skin_tone_entries">
+        <item>기본</item>
+        <item>밝은 피부</item>
+        <item>약간 밝은 피부</item>
+        <item>중간 피부</item>
+        <item>약간 어두운 피부</item>
+        <item>어두운 피부</item>
+    </string-array>
+
+    <string-array name="emoji_skin_tone_values">
+        <item>none</item>
+        <item>light</item>
+        <item>medium_light</item>
+        <item>medium</item>
+        <item>medium_dark</item>
+        <item>dark</item>
+    </string-array>
+
+    <string-array name="auto_composition_timeout_entries">
+        <item>끄기</item>
+        <item>0.5초</item>
+        <item>1초</item>
+        <item>2초</item>
+    </string-array>
+
+    <string-array name="auto_composition_timeout_values">
+        <item>0</item>
+        <item>500</item>
+        <item>1000</item>
+        <item>2000</item>
+    </string-array>
 
     <string-array name="korean_keyboard_type_entries">
         <item>나랏글</item>

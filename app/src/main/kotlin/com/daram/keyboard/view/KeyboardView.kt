@@ -97,6 +97,17 @@ class KeyboardView(
     private var isSwipeCandidate = false
     private val swipeThresholdPx by lazy { dpToPx(40f) }
 
+    // 더블 스페이스 자동 온점
+    private var lastSpaceTimeMs = 0L
+    private val doubleSpaceThresholdMs = 500L
+
+    // 키 팝업 페인트
+    private val popupBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val popupLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        typeface = Typeface.DEFAULT_BOLD
+    }
+
     // 현재 입력 중인 단어 버퍼
     private val currentWordBuffer = StringBuilder()
 
@@ -132,6 +143,9 @@ class KeyboardView(
         labelPaint.color = theme.keyLabelColor
         secondaryLabelPaint.textSize = spToPx(theme.keySecondaryLabelSizeSp)
         secondaryLabelPaint.color = theme.keySecondaryLabelColor
+        popupBgPaint.color = theme.keyNormalBackground
+        popupLabelPaint.color = theme.keyLabelColor
+        popupLabelPaint.textSize = spToPx(theme.keyLabelSizeSp * 1.6f)
         invalidate()
     }
 
@@ -187,9 +201,11 @@ class KeyboardView(
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val width = MeasureSpec.getSize(widthMeasureSpec)
-        val resId = resources.getIdentifier("keyboard_height", "dimen", context.packageName)
-        val keyboardHeight = if (resId != 0) resources.getDimensionPixelSize(resId)
-                             else (width * 0.55f).toInt()
+        val keyboardHeight = when (PreferenceManager.getKeyboardHeight(context)) {
+            "small" -> dpToPx(240f).toInt()
+            "large" -> dpToPx(320f).toInt()
+            else    -> dpToPx(280f).toInt()
+        }
         setMeasuredDimension(width, keyboardHeight + gestureNavBottomPadding)
     }
 
@@ -236,6 +252,33 @@ class KeyboardView(
                 keyRects[key.id]?.let { drawKey(canvas, key, it) }
             }
         }
+        // 키 팝업 오버레이
+        val popupKey = pressedKey
+        if (popupKey != null && PreferenceManager.isKeyPopupEnabled(context)) {
+            keyRects[popupKey.id]?.let { keyRect ->
+                val popupW = keyRect.width() * 1.4f
+                val popupH = keyRect.height() * 1.2f
+                val popupL = (keyRect.centerX() - popupW / 2f).coerceAtLeast(0f)
+                val popupR = (popupL + popupW).coerceAtMost(width.toFloat())
+                val popupB = keyRect.top - dpToPx(4f)
+                val popupT = popupB - popupH
+                val radius = dpToPx(6f)
+                canvas.drawRoundRect(popupL, popupT.coerceAtLeast(0f), popupR, popupB, radius, radius, popupBgPaint)
+                val label = when (popupKey.style) {
+                    KeyStyle.BACKSPACE -> "\u232B"
+                    KeyStyle.ENTER     -> "\u21B5"
+                    KeyStyle.SHIFT     -> "\u2191"
+                    KeyStyle.SPACE     -> null
+                    KeyStyle.RETURN    -> returnLabel()
+                    else               -> popupKey.primaryLabel.takeIf { it.isNotEmpty() }
+                }
+                if (label != null) {
+                    val textY = (popupT + popupB) / 2f - (popupLabelPaint.descent() + popupLabelPaint.ascent()) / 2f
+                    canvas.drawText(label, keyRect.centerX(), textY.coerceAtLeast(popupLabelPaint.textSize), popupLabelPaint)
+                }
+            }
+        }
+
         // 히트 타겟 시각화 오버레이
         if (PreferenceManager.isShowHitTargetsEnabled(context)) {
             canvas.save()
@@ -551,11 +594,27 @@ class KeyboardView(
             }
 
             is KeyAction.Space -> {
-                inputEngine.processAction(action, ic)
-                val word = currentWordBuffer.toString().trim()
-                currentWordBuffer.clear()
-                if (word.isNotEmpty()) onWordCommitted(word)
-                onComposingChanged("", SyllableState(), "")
+                val now = System.currentTimeMillis()
+                val isDoubleSpace = PreferenceManager.isAutoPeriodOnDoubleSpaceEnabled(context) &&
+                        (now - lastSpaceTimeMs) < doubleSpaceThresholdMs &&
+                        currentWordBuffer.isNotEmpty()
+                lastSpaceTimeMs = now
+
+                if (isDoubleSpace) {
+                    // 직전 스페이스를 지우고 ". " 입력
+                    ic.deleteSurroundingText(1, 0)
+                    ic.commitText(". ", 1)
+                    val word = currentWordBuffer.toString().trim()
+                    currentWordBuffer.clear()
+                    if (word.isNotEmpty()) onWordCommitted(word)
+                    onComposingChanged("", SyllableState(), "")
+                } else {
+                    inputEngine.processAction(action, ic)
+                    val word = currentWordBuffer.toString().trim()
+                    currentWordBuffer.clear()
+                    if (word.isNotEmpty()) onWordCommitted(word)
+                    onComposingChanged("", SyllableState(), "")
+                }
             }
             is KeyAction.Enter -> {
                 inputEngine.processAction(action, ic)
