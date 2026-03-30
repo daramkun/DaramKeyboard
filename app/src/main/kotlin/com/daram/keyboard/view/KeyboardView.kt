@@ -669,9 +669,23 @@ class KeyboardView(
     /**
      * 하드웨어 키보드 입력을 터치 입력과 동일한 경로로 처리한다.
      * DaramInputMethodService.onKeyDown()에서 호출.
+     *
+     * @param engineOverride null이면 현재 inputEngine 사용.
+     *   나랏글·천지인 등 소프트 전용 자판에서 하드웨어 입력 시
+     *   DubeolsikAutomata 기반 엔진을 전달해 올바른 조합을 보장한다.
      */
-    fun handleHardwareKeyAction(action: KeyAction) {
-        handleKeyAction(action)
-        onKeyPressed()
+    fun handleHardwareKeyAction(action: KeyAction, engineOverride: InputEngine? = null) {
+        if (engineOverride != null) {
+            val saved = inputEngine
+            inputEngine = engineOverride
+            attachEngineCallbacks()
+            handleKeyAction(action)
+            onKeyPressed()
+            inputEngine = saved
+            attachEngineCallbacks()
+        } else {
+            handleKeyAction(action)
+            onKeyPressed()
+        }
     }
 }

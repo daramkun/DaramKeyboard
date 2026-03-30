@@ -19,6 +19,7 @@ import com.daram.keyboard.input.KeyboardFactory
 import com.daram.keyboard.input.KoreanDubeolsikHardwareKeyMapper
 import com.daram.keyboard.input.QwertyHardwareKeyMapper
 import com.daram.keyboard.input.QwertyInputEngine
+import com.daram.nutcracker.automata.DubeolsikAutomata
 import com.daram.keyboard.layout.EmojiLayout
 import com.daram.keyboard.layout.KeyboardLayout
 import com.daram.keyboard.layout.NaratgulLayout
@@ -46,6 +47,13 @@ class DaramInputMethodService : InputMethodService() {
     private lateinit var predictionEngine: WordPredictionEngine
 
     private val qwertyEngine = QwertyInputEngine()
+
+    /**
+     * 나랏글·천지인·SKY-II·모토로라 등 소프트 전용 자판에서
+     * 하드웨어 키보드 입력 시 사용하는 두벌식 오토마타 엔진.
+     * 소프트 koreanEngine과 독립된 상태를 유지한다.
+     */
+    private val hardwareHangulEngine = HangulInputEngine(DubeolsikAutomata(), hasShift = true)
 
     /** 현재 활성 한글 입력 엔진 (자판 타입에 따라 교체됨) */
     private var koreanEngine: HangulInputEngine = KeyboardFactory.createKorean(KoreanKeyboardType.NARATGEUL).second
@@ -87,14 +95,19 @@ class DaramInputMethodService : InputMethodService() {
         }
         if (!::keyboardView.isInitialized) return super.onKeyDown(keyCode, event)
 
-        val mapper = if (currentLayout == QwertyLayout) QwertyHardwareKeyMapper
-                     else KoreanDubeolsikHardwareKeyMapper
-        val shift = if (currentLayout == QwertyLayout) qwertyEngine.getShiftState()
-                    else koreanEngine.shiftState
+        val isKorean = currentLayout != QwertyLayout
+        val mapper = if (isKorean) KoreanDubeolsikHardwareKeyMapper else QwertyHardwareKeyMapper
+        val shift = if (isKorean) hardwareHangulEngine.shiftState else qwertyEngine.getShiftState()
         val action = mapper.mapKeyCode(keyCode, event, shift)
             ?: return super.onKeyDown(keyCode, event)
 
-        keyboardView.handleHardwareKeyAction(action)
+        // 소프트 전용 자판(나랏글·천지인 등)은 DubeolsikAutomata 기반 엔진으로 오버라이드
+        val koreanType = PreferenceManager.getKoreanKeyboardType(this)
+        val engineOverride = if (isKorean &&
+            koreanType != KoreanKeyboardType.DUBEOLSIK &&
+            koreanType != KoreanKeyboardType.DANMOEUM) hardwareHangulEngine else null
+
+        keyboardView.handleHardwareKeyAction(action, engineOverride)
         return true
     }
 
@@ -188,6 +201,7 @@ class DaramInputMethodService : InputMethodService() {
         super.onStartInput(attribute, restarting)
         koreanEngine.reset()
         qwertyEngine.reset()
+        hardwareHangulEngine.reset()
         predictionEngine.resetContext()
         currentComposingWord = ""
     }
@@ -299,6 +313,7 @@ class DaramInputMethodService : InputMethodService() {
         super.onFinishInput()
         koreanEngine.reset()
         qwertyEngine.reset()
+        hardwareHangulEngine.reset()
         currentComposingWord = ""
     }
 
