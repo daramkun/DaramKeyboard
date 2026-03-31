@@ -54,10 +54,9 @@ object DubeolsikLayout : KeyboardLayout {
             Key("m", "ㅡ", null, KeyAction.TypeRawKey('m')),
             Key("del", "", null, KeyAction.Backspace, style = KeyStyle.BACKSPACE, widthWeight = 1.5f)
         ),
-        // 행 4: EN(1.5) 자판(1.5) , Space(3) . 😊 ↵(1.5)
+        // 행 4: EN(3) , Space(3) . 😊 ↵(1.5)
         listOf(
-            Key("lang_en",  "⌨",    null, KeyAction.SwitchToNextIme,   style = KeyStyle.FUNCTION, widthWeight = 1.5f),
-            Key("type",     "자판",  null, KeyAction.SwitchKoreanType,   style = KeyStyle.FUNCTION, widthWeight = 1.5f),
+            Key("lang_en",  "⌨",    null, KeyAction.SwitchToNextIme,   style = KeyStyle.FUNCTION, widthWeight = 3f),
             Key("comma",    ",",    null, KeyAction.TypeText(",")),
             Key("space",    " ",    null, KeyAction.Space, style = KeyStyle.SPACE, widthWeight = 3f),
             Key("period",   ".",    null, KeyAction.TypeText(".")),

@@ -40,9 +40,8 @@ internal fun buildPhoneLayout(
         Key("c9",        l9,  "9",  KeyAction.TypeRawKey('9'), KeyAction.TypeNumber(9)),
         Key("space_pad", "",  null, KeyAction.Space, visible = false)
     ),
-    // 행 4: 자판 | * | 0 | # | ↵
+    // 행 4: * | 0 | # | ↵
     listOf(
-        Key("type",  "자판", null,  KeyAction.SwitchKoreanType, style = KeyStyle.FUNCTION),
         Key("cstar", lStar, "*",   KeyAction.TypeRawKey('*'), lStarLong),
         Key("c0",    l0,    "0",   KeyAction.TypeRawKey('0'), l0Long),
         Key("chash", lHash, "#",   KeyAction.TypeRawKey('#')),

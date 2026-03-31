@@ -34,7 +34,7 @@ object NaratgulLayout : KeyboardLayout {
         ),
         // 행 4: 한↔EN(꾹=자판변경) | 획추가 | —(0) | 쌍자음 | ↵
         listOf(
-            Key("lang", "⌨", null, KeyAction.SwitchToNextIme, KeyAction.SwitchKoreanType, style = KeyStyle.FUNCTION),
+            Key("lang", "⌨", null, KeyAction.SwitchToNextIme, style = KeyStyle.FUNCTION),
             Key("stroke", "획추가", null, KeyAction.AddStroke, style = KeyStyle.FUNCTION),
             Key("eu", "ㅡ", "0", KeyAction.TypeRawKey('0'), KeyAction.TypeNumber(0)),
             Key("double", "쌍자음", null, KeyAction.ToggleDouble, style = KeyStyle.FUNCTION),
