@@ -664,6 +664,7 @@ class KeyboardView(
      */
     fun applyNextKeyHints(hints: Map<String, Float>) {
         hitTargetManager.setNextKeyHints(hints)
+        invalidate()
     }
 
     /**

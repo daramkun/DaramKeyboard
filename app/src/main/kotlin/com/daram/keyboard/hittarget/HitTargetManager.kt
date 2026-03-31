@@ -189,15 +189,21 @@ class HitTargetManager {
                 // 두 키의 히트 영역이 겹치는지 확인
                 if (!RectF.intersects(hitA, hitB)) continue
 
-                // 중점
-                val midX = (centerA.x + centerB.x) / 2f
-                val midY = (centerA.y + centerB.y) / 2f
+                // 두 키의 가중치(빈도 + 예측 힌트)를 고려하여 분할 지점(midpoint) 계산
+                val weightA = resolvedWeight(idA) + (nextKeyHints[idA] ?: 0f)
+                val weightB = resolvedWeight(idB) + (nextKeyHints[idB] ?: 0f)
+
+                // 가중치 비율에 따라 경계 이동 (가중치 높을수록 더 많은 영역 확보)
+                val totalWeight = weightA + weightB
+                val ratioA = if (totalWeight > 0) weightA / totalWeight else 0.5f
+                val midX = centerA.x + (centerB.x - centerA.x) * ratioA
+                val midY = centerA.y + (centerB.y - centerA.y) * ratioA
 
                 // 방향 벡터 (A→B)
                 val dx = centerB.x - centerA.x
                 val dy = centerB.y - centerA.y
 
-                // 수직이등분선 방향이 수평에 가까우면 Y 기준으로 분할, 아니면 X 기준
+                // 수직이등분선(또는 가중 수직선) 방향이 수평에 가까우면 Y 기준으로 분할, 아니면 X 기준
                 if (Math.abs(dx) > Math.abs(dy)) {
                     // 수직선으로 분할: A가 왼쪽이면 A의 right와 B의 left를 midX로
                     if (centerA.x < centerB.x) {
