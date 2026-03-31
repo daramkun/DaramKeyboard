@@ -218,6 +218,7 @@ class DaramInputMethodService : InputMethodService() {
                 emojiKeyboardView.applyTheme(theme)
             }
 
+            applyKoreanKeyboardType(PreferenceManager.getKoreanKeyboardType(this))
             val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
             applySubtypeLayout(imm.currentInputMethodSubtype)
             applyGestureNavPadding()
@@ -234,18 +235,19 @@ class DaramInputMethodService : InputMethodService() {
     private fun applySubtypeLayout(subtype: InputMethodSubtype?) {
         val isEnglish = subtype?.languageTag?.startsWith("en") == true
         val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        val useOrientationLayout = PreferenceManager.isOrientationLayoutEnabled(this)
+        val landscapeType = PreferenceManager.getLandscapeKoreanKeyboardType(this)
 
         val targetKoreanLayout: KeyboardLayout
         val targetKoreanEngine: HangulInputEngine
-        if (isLandscape && useOrientationLayout && !isEnglish) {
-            val (layout, engine) = KeyboardFactory.createKorean(KoreanKeyboardType.DUBEOLSIK)
+        if (isLandscape && landscapeType != null && !isEnglish) {
+            val (layout, engine) = KeyboardFactory.createKorean(landscapeType)
             targetKoreanLayout = layout
             targetKoreanEngine = engine
         } else {
             targetKoreanLayout = koreanLayout
             targetKoreanEngine = koreanEngine
         }
+        keyboardView.isLandscapeMode = isLandscape
 
         val targetLayout = if (isEnglish) QwertyLayout else targetKoreanLayout
         if (currentLayout == targetLayout) return

@@ -21,8 +21,7 @@
     <string name="pref_auto_period_double_space_summary">스페이스바를 두 번 연속 누르면 자동으로 온점(.)을 추가합니다</string>
     <string name="pref_auto_composition_timeout_title">자동 조합 완성</string>
     <string name="pref_auto_composition_timeout_summary">일정 시간 입력이 없으면 조합 중인 글자를 자동으로 완성합니다</string>
-    <string name="pref_orientation_layout_title">방향별 키보드 자동 전환</string>
-    <string name="pref_orientation_layout_summary">가로 방향 시 두벌식 레이아웃으로 자동 전환합니다</string>
+    <string name="pref_landscape_keyboard_type_title">가로 모드 자판</string>
     <string name="pref_hide_keyboard_on_hardware_title">하드웨어 키보드 시 소프트 키보드 숨김</string>
     <string name="pref_hide_keyboard_on_hardware_summary">물리 키보드가 연결된 경우 화면 키보드를 자동으로 숨깁니다</string>
 
@@ -91,6 +90,7 @@
         <item>모토로라</item>
         <item>단모음</item>
         <item>두벌식</item>
+        <item>무이128</item>
     </string-array>
 
     <string-array name="korean_keyboard_type_values">
@@ -100,6 +100,29 @@
         <item>motorola</item>
         <item>danmoeum</item>
         <item>dubeolsik</item>
+        <item>mue128</item>
+    </string-array>
+
+    <string-array name="landscape_keyboard_type_entries">
+        <item>세로 모드와 동일</item>
+        <item>나랏글</item>
+        <item>천지인</item>
+        <item>SKY-II</item>
+        <item>모토로라</item>
+        <item>단모음</item>
+        <item>두벌식</item>
+        <item>무이128</item>
+    </string-array>
+
+    <string-array name="landscape_keyboard_type_values">
+        <item>same</item>
+        <item>naratgeul</item>
+        <item>cheonjiin</item>
+        <item>sky2</item>
+        <item>motorola</item>
+        <item>danmoeum</item>
+        <item>dubeolsik</item>
+        <item>mue128</item>
     </string-array>
 
     <string-array name="theme_entries">

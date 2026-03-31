@@ -16,7 +16,7 @@ object PreferenceManager {
     private const val KEY_EMOJI_SKIN_TONE = "emoji_skin_tone"
     private const val KEY_AUTO_PERIOD_DOUBLE_SPACE = "auto_period_double_space"
     private const val KEY_AUTO_COMPOSITION_TIMEOUT = "auto_composition_timeout"
-    private const val KEY_ORIENTATION_LAYOUT = "orientation_layout"
+    private const val KEY_LANDSCAPE_KEYBOARD_TYPE = "landscape_keyboard_type"
     private const val KEY_HIDE_KEYBOARD_ON_HARDWARE = "hide_keyboard_on_hardware"
 
     /** 진동 켜짐 여부: intensity가 "off"가 아니면 켜짐 */
@@ -72,10 +72,13 @@ object PreferenceManager {
         AndroidPreferenceManager.getDefaultSharedPreferences(context)
             .getBoolean(KEY_HIDE_KEYBOARD_ON_HARDWARE, false)
 
-    /** 화면 방향에 따라 기본 레이아웃을 자동 변경할지 여부 */
-    fun isOrientationLayoutEnabled(context: Context): Boolean =
-        AndroidPreferenceManager.getDefaultSharedPreferences(context)
-            .getBoolean(KEY_ORIENTATION_LAYOUT, false)
+    /** 가로 모드에서 사용할 자판 타입. null이면 세로 모드와 동일 */
+    fun getLandscapeKoreanKeyboardType(context: Context): KoreanKeyboardType? {
+        val value = AndroidPreferenceManager.getDefaultSharedPreferences(context)
+            .getString(KEY_LANDSCAPE_KEYBOARD_TYPE, "same") ?: "same"
+        if (value == "same") return null
+        return KoreanKeyboardType.entries.firstOrNull { it.prefValue == value }
+    }
 
     fun getKoreanKeyboardType(context: Context): KoreanKeyboardType {
         val prefValue = AndroidPreferenceManager.getDefaultSharedPreferences(context)

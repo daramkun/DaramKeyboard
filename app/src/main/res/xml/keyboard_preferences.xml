@@ -71,11 +71,12 @@
         android:entryValues="@array/korean_keyboard_type_values"
         android:defaultValue="naratgeul" />
 
-    <SwitchPreferenceCompat
-        android:key="orientation_layout"
-        android:title="@string/pref_orientation_layout_title"
-        android:summary="@string/pref_orientation_layout_summary"
-        android:defaultValue="false" />
+    <ListPreference
+        android:key="landscape_keyboard_type"
+        android:title="@string/pref_landscape_keyboard_type_title"
+        android:entries="@array/landscape_keyboard_type_entries"
+        android:entryValues="@array/landscape_keyboard_type_values"
+        android:defaultValue="same" />
 
     <SwitchPreferenceCompat
         android:key="hide_keyboard_on_hardware"
