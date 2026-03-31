@@ -1,6 +1,7 @@
 package com.daram.keyboard.view
 
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -51,6 +52,14 @@ class KeyboardView(
 
     private var layout: KeyboardLayout = NaratgulLayout
     private val hitTargetManager = HitTargetManager()
+
+    var isLandscapeMode: Boolean = false
+        set(value) {
+            if (field == value) return
+            field = value
+            if (width > 0 && height > 0) calculateKeyRects(width, height - gestureNavBottomPadding)
+            invalidate()
+        }
 
     var inputConnection: InputConnection? = null
 
@@ -114,6 +123,9 @@ class KeyboardView(
     // 이전 레이아웃 추적 (기호/숫자/이모지 복귀용)
     private var prevLayout: KeyboardLayout = NaratgulLayout
 
+    private fun Key.isHiddenInLandscape() =
+        isLandscapeMode && (action is KeyAction.SwitchKoreanType || longPressAction is KeyAction.SwitchKoreanType)
+
     private fun dpToPx(dp: Float) =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, resources.displayMetrics)
 
@@ -143,9 +155,9 @@ class KeyboardView(
         labelPaint.color = theme.keyLabelColor
         secondaryLabelPaint.textSize = spToPx(theme.keySecondaryLabelSizeSp)
         secondaryLabelPaint.color = theme.keySecondaryLabelColor
-        popupBgPaint.color = theme.keyNormalBackground
+        popupBgPaint.color = theme.keyPressedBackground
         popupLabelPaint.color = theme.keyLabelColor
-        popupLabelPaint.textSize = spToPx(theme.keyLabelSizeSp * 1.6f)
+        popupLabelPaint.textSize = spToPx(theme.keyLabelSizeSp)
         invalidate()
     }
 
@@ -201,10 +213,11 @@ class KeyboardView(
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val width = MeasureSpec.getSize(widthMeasureSpec)
+        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         val keyboardHeight = when (PreferenceManager.getKeyboardHeight(context)) {
-            "small" -> dpToPx(240f).toInt()
-            "large" -> dpToPx(320f).toInt()
-            else    -> dpToPx(280f).toInt()
+            "small" -> dpToPx(if (isLandscape) 160f else 240f).toInt()
+            "large" -> dpToPx(if (isLandscape) 220f else 320f).toInt()
+            else    -> dpToPx(if (isLandscape) 190f else 280f).toInt()
         }
         setMeasuredDimension(width, keyboardHeight + gestureNavBottomPadding)
     }
@@ -239,7 +252,8 @@ class KeyboardView(
             }
         }
 
-        val allKeys = layout.rows.flatten().distinctBy { it.id }.filter { it.visible }
+        val allKeys = layout.rows.flatten().distinctBy { it.id }
+            .filter { it.visible && !it.isHiddenInLandscape() }
         hitTargetManager.setKeyRects(allKeys, keyRects)
     }
 
@@ -248,7 +262,7 @@ class KeyboardView(
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), backgroundPaint)
         for (row in layout.rows) {
             for (key in row) {
-                if (!key.visible) continue
+                if (!key.visible || key.isHiddenInLandscape()) continue
                 keyRects[key.id]?.let { drawKey(canvas, key, it) }
             }
         }
@@ -256,14 +270,16 @@ class KeyboardView(
         val popupKey = pressedKey
         if (popupKey != null && PreferenceManager.isKeyPopupEnabled(context)) {
             keyRects[popupKey.id]?.let { keyRect ->
-                val popupW = keyRect.width() * 1.4f
-                val popupH = keyRect.height() * 1.2f
+                val popupW = keyRect.width() * 1.1f
+                val popupH = keyRect.height() * 1.1f
                 val popupL = (keyRect.centerX() - popupW / 2f).coerceAtLeast(0f)
                 val popupR = (popupL + popupW).coerceAtMost(width.toFloat())
-                val popupB = keyRect.top - dpToPx(4f)
-                val popupT = popupB - popupH
+                val aboveB = keyRect.top - dpToPx(4f)
+                val aboveT = (aboveB - popupH).coerceAtLeast(0f)
+                val popupT = aboveT
+                val popupB = popupT + popupH
                 val radius = dpToPx(6f)
-                canvas.drawRoundRect(popupL, popupT.coerceAtLeast(0f), popupR, popupB, radius, radius, popupBgPaint)
+                canvas.drawRoundRect(popupL, popupT, popupR, popupB, radius, radius, popupBgPaint)
                 val label = when (popupKey.style) {
                     KeyStyle.BACKSPACE -> "\u232B"
                     KeyStyle.ENTER     -> "\u21B5"
@@ -274,7 +290,7 @@ class KeyboardView(
                 }
                 if (label != null) {
                     val textY = (popupT + popupB) / 2f - (popupLabelPaint.descent() + popupLabelPaint.ascent()) / 2f
-                    canvas.drawText(label, keyRect.centerX(), textY.coerceAtLeast(popupLabelPaint.textSize), popupLabelPaint)
+                    canvas.drawText(label, keyRect.centerX(), textY, popupLabelPaint)
                 }
             }
         }
