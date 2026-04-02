@@ -279,6 +279,7 @@ class KeyboardView(
                 val popupT = aboveT
                 val popupB = popupT + popupH
                 val radius = dpToPx(6f)
+                val sc = canvas.saveLayer(null, null)
                 canvas.drawRoundRect(popupL, popupT, popupR, popupB, radius, radius, popupBgPaint)
                 val label = when (popupKey.style) {
                     KeyStyle.BACKSPACE -> "\u232B"
@@ -292,6 +293,7 @@ class KeyboardView(
                     val textY = (popupT + popupB) / 2f - (popupLabelPaint.descent() + popupLabelPaint.ascent()) / 2f
                     canvas.drawText(label, keyRect.centerX(), textY, popupLabelPaint)
                 }
+                canvas.restoreToCount(sc)
             }
         }
 
@@ -329,8 +331,14 @@ class KeyboardView(
         val isPressed = pressedKey?.id == key.id
         val isActiveCategory = isCurrentEmojiCategory(key)
 
+        val isShiftActive = key.style == KeyStyle.SHIFT && run {
+            val ss = (inputEngine as? QwertyInputEngine)?.getShiftState()
+                ?: (inputEngine as? HangulInputEngine)?.takeIf { it.hasShift }?.shiftState
+                ?: ShiftState.OFF
+            ss != ShiftState.OFF
+        }
         keyBackgroundPaint.color = when {
-            isPressed -> theme.keyPressedBackground
+            isPressed || isShiftActive -> theme.keyPressedBackground
             isActiveCategory -> theme.keyNormalBackground  // 활성 카테고리는 밝게
             key.style == KeyStyle.NORMAL || key.style == KeyStyle.SPACE -> theme.keyNormalBackground
             else -> theme.keyFunctionBackground
