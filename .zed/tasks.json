@@ -1,0 +1,20 @@
+[
+  {
+    "label": "Start Android Emulator",
+    "command": "emulator -avd Medium_Phone_API_35",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+  },
+  {
+    "label": "Android: Install & Run Debug",
+    "command": "./gradlew installDebug && adb shell am start -n \"com.daram.keyboard/.MainActivity\"",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+  },
+  {
+    "label": "Android: Clean & Build",
+    "command": "./gradlew clean assembleDebug",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+  },
+]
