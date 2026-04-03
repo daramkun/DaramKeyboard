@@ -30,8 +30,9 @@ object DubeolsikLayout : KeyboardLayout {
             Key("o", "ㅐ", "9", KeyAction.TypeRawKey('o'), KeyAction.TypeNumber(9)),
             Key("p", "ㅔ", "0", KeyAction.TypeRawKey('p'), KeyAction.TypeNumber(0))
         ),
-        // 행 2: a(ㅁ) s(ㄴ) d(ㅇ) f(ㄹ) g(ㅎ) h(ㅗ) j(ㅓ) k(ㅏ) l(ㅣ)
+        // 행 2: a(ㅁ) s(ㄴ) d(ㅇ) f(ㄹ) g(ㅎ) h(ㅗ) j(ㅓ) k(ㅏ) l(ㅣ) — 양쪽 0.5f 패딩으로 가운데 정렬
         listOf(
+            Key("dub_pad_l", "", null, KeyAction.TypeText(""), widthWeight = 0.5f, visible = false),
             Key("a", "ㅁ", null, KeyAction.TypeRawKey('a')),
             Key("s", "ㄴ", null, KeyAction.TypeRawKey('s')),
             Key("d", "ㅇ", null, KeyAction.TypeRawKey('d')),
@@ -40,7 +41,8 @@ object DubeolsikLayout : KeyboardLayout {
             Key("h", "ㅗ", null, KeyAction.TypeRawKey('h')),
             Key("j", "ㅓ", null, KeyAction.TypeRawKey('j')),
             Key("k", "ㅏ", null, KeyAction.TypeRawKey('k')),
-            Key("l", "ㅣ", null, KeyAction.TypeRawKey('l'))
+            Key("l", "ㅣ", null, KeyAction.TypeRawKey('l')),
+            Key("dub_pad_r", "", null, KeyAction.TypeText(""), widthWeight = 0.5f, visible = false),
         ),
         // 행 3: Shift(1.5) z(ㅋ) x(ㅌ) c(ㅊ) v(ㅍ) b(ㅠ) n(ㅜ) m(ㅡ) ⌫(1.5)
         listOf(
@@ -65,6 +67,6 @@ object DubeolsikLayout : KeyboardLayout {
         )
     )
 
-    // 행 2: 행1 키 너비의 절반만큼 들여쓰기
-    override val rowStartXRatios: List<Float> = listOf(0f, 0.05f, 0f, 0f)
+    // 행 2: 양쪽 패딩(각 0.5f)으로 가운데 정렬 — 행 1과 동일한 키 너비(W/10) 확보
+    override val rowStartXRatios: List<Float> = listOf(0f, 0f, 0f, 0f)
 }

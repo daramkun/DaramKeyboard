@@ -17,7 +17,7 @@ import com.daram.keyboard.model.KeyStyle
 object DanmoemLayout : KeyboardLayout {
 
     override val rows: List<List<Key>> = listOf(
-        // 행 1: q(ㅂ) w(ㅈ) e(ㄷ) r(ㄱ) t(ㅅ) y(ㅗ) u(ㅐ) i(ㅔ)
+        // 행 1: 8키 = 8f, indent 0% → key = W/8
         listOf(
             Key("q", "ㅂ", "1", KeyAction.TypeRawKey('q'), KeyAction.TypeNumber(1)),
             Key("w", "ㅈ", "2", KeyAction.TypeRawKey('w'), KeyAction.TypeNumber(2)),
@@ -28,7 +28,7 @@ object DanmoemLayout : KeyboardLayout {
             Key("u", "ㅐ", "7", KeyAction.TypeRawKey('u'), KeyAction.TypeNumber(7)),
             Key("i", "ㅔ", "8", KeyAction.TypeRawKey('i'), KeyAction.TypeNumber(8))
         ),
-        // 행 2: a(ㅁ) s(ㄴ) d(ㅇ) f(ㄹ) g(ㅎ) h(ㅓ) j(ㅏ) k(ㅣ)
+        // 행 2: 8키 = 8f, indent 0% → key = W/8 (행1과 동일)
         listOf(
             Key("a", "ㅁ", null, KeyAction.TypeRawKey('a')),
             Key("s", "ㄴ", null, KeyAction.TypeRawKey('s')),
@@ -36,10 +36,10 @@ object DanmoemLayout : KeyboardLayout {
             Key("f", "ㄹ", null, KeyAction.TypeRawKey('f')),
             Key("g", "ㅎ", null, KeyAction.TypeRawKey('g')),
             Key("h", "ㅓ", null, KeyAction.TypeRawKey('h')),
-            Key("j", "ㅏ", null, KeyAction.TypeRawKey('j')),
-            Key("k", "ㅣ", null, KeyAction.TypeRawKey('k'))
+            Key("j", "ㅏ",  "9",  KeyAction.TypeRawKey('j'), KeyAction.TypeNumber(9)),
+            Key("k", "ㅣ",  "0", KeyAction.TypeRawKey('k'), KeyAction.TypeNumber(0))
         ),
-        // 행 3: z(ㅋ) x(ㅌ) c(ㅊ) v(ㅍ) b(ㅜ) n(ㅡ) ⌫(3f)
+        // 행 3: 6키(1f)+⌫(1.5f) = 7.5f, indent 6.25% → 0.9375W/7.5 = W/8 (행1과 동일)
         listOf(
             Key("z",   "ㅋ", null, KeyAction.TypeRawKey('z')),
             Key("x",   "ㅌ", null, KeyAction.TypeRawKey('x')),
@@ -47,7 +47,7 @@ object DanmoemLayout : KeyboardLayout {
             Key("v",   "ㅍ", null, KeyAction.TypeRawKey('v')),
             Key("b",   "ㅜ", null, KeyAction.TypeRawKey('b')),
             Key("n",   "ㅡ", null, KeyAction.TypeRawKey('n')),
-            Key("del", "",   null, KeyAction.Backspace, style = KeyStyle.BACKSPACE, widthWeight = 3f)
+            Key("del", "",   null, KeyAction.Backspace, style = KeyStyle.BACKSPACE, widthWeight = 1.5f)
         ),
         // 행 4: EN(3) , Space(3) . 😊 ↵(1.5)
         listOf(
@@ -60,5 +60,6 @@ object DanmoemLayout : KeyboardLayout {
         )
     )
 
-    override val rowStartXRatios: List<Float> = listOf(0f, 0.05f, 0.1f, 0f)
+    // 행 3만 6.25% indent → 0.9375W / 7.5f = W/8 (전 행 동일한 한글 키 너비)
+    override val rowStartXRatios: List<Float> = listOf(0f, 0f, 0.0625f, 0f)
 }

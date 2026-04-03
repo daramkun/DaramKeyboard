@@ -21,17 +21,17 @@ object Mue128Layout : KeyboardLayout {
     override val secondaryLabelAlignment = SecondaryLabelAlignment.BOTTOM_RIGHT
 
     override val rows: List<List<Key>> = listOf(
-        // 행 1: ㅈ(1) ㄷ(2) ㄱ(3) ㅅ(4) ㅔ(5) ㅐ(6) [invisible] — 6키 연속, 맨 오른쪽 공백
+        // 행 1: 6키(1f)+⌫(1f) = 7f → key = W/7
         listOf(
-            Key("m_j",   "ㅈ", "1", KeyAction.TypeHangul('ㅈ'), KeyAction.TypeNumber(1)),
-            Key("m_d",   "ㄷ", "2", KeyAction.TypeHangul('ㄷ'), KeyAction.TypeNumber(2)),
-            Key("m_g",   "ㄱ", "3", KeyAction.TypeHangul('ㄱ'), KeyAction.TypeNumber(3)),
-            Key("m_s",   "ㅅ", "4", KeyAction.TypeHangul('ㅅ'), KeyAction.TypeNumber(4)),
-            Key("m_ee",  "ㅔ", "5", KeyAction.TypeHangul('ㅔ'), KeyAction.TypeNumber(5)),
-            Key("m_ae",  "ㅐ", "6", KeyAction.TypeHangul('ㅐ'), KeyAction.TypeNumber(6)),
-            Key("m_gap", "",   null, KeyAction.TypeText(""), visible = false)
+            Key("m_j",  "ㅈ", "1", KeyAction.TypeHangul('ㅈ'), KeyAction.TypeNumber(1)),
+            Key("m_d",  "ㄷ", "2", KeyAction.TypeHangul('ㄷ'), KeyAction.TypeNumber(2)),
+            Key("m_g",  "ㄱ", "3", KeyAction.TypeHangul('ㄱ'), KeyAction.TypeNumber(3)),
+            Key("m_s",  "ㅅ", "4", KeyAction.TypeHangul('ㅅ'), KeyAction.TypeNumber(4)),
+            Key("m_ee", "ㅔ", "5", KeyAction.TypeHangul('ㅔ'), KeyAction.TypeNumber(5)),
+            Key("m_ae", "ㅐ", "6", KeyAction.TypeHangul('ㅐ'), KeyAction.TypeNumber(6)),
+            Key("del",  "",   null, KeyAction.Backspace, style = KeyStyle.BACKSPACE)
         ),
-        // 행 2: ㅁ(7) ㄴ(8) ㅇ(9) ㄹ(0) ㅓ ㅏ ㅣ
+        // 행 2: 7키 = 7f → key = W/7 (행1과 동일)
         listOf(
             Key("m_m",  "ㅁ", "7", KeyAction.TypeHangul('ㅁ'), KeyAction.TypeNumber(7)),
             Key("m_n",  "ㄴ", "8", KeyAction.TypeHangul('ㄴ'), KeyAction.TypeNumber(8)),
@@ -41,16 +41,15 @@ object Mue128Layout : KeyboardLayout {
             Key("m_a",  "ㅏ", null, KeyAction.TypeHangul('ㅏ')),
             Key("m_i",  "ㅣ", null, KeyAction.TypeHangul('ㅣ'))
         ),
-        // 행 3: ㅋ ㅌ ㅂ ㅎ ㅜ ㅗ ㅡ ⌫(1.5)
+        // 행 3: 7키 = 7f → key = W/7 (행1과 동일, ⌫은 행1에만)
         listOf(
-            Key("m_k",   "ㅋ", null, KeyAction.TypeHangul('ㅋ')),
-            Key("m_t",   "ㅌ", null, KeyAction.TypeHangul('ㅌ')),
-            Key("m_b",   "ㅂ", null, KeyAction.TypeHangul('ㅂ')),
-            Key("m_h",   "ㅎ", null, KeyAction.TypeHangul('ㅎ')),
-            Key("m_u",   "ㅜ", null, KeyAction.TypeHangul('ㅜ')),
-            Key("m_o",   "ㅗ", null, KeyAction.TypeHangul('ㅗ')),
-            Key("m_eu",  "ㅡ", null, KeyAction.TypeHangul('ㅡ')),
-            Key("del",   "",   null, KeyAction.Backspace, style = KeyStyle.BACKSPACE, widthWeight = 1.5f)
+            Key("m_k",  "ㅋ", null, KeyAction.TypeHangul('ㅋ')),
+            Key("m_t",  "ㅌ", null, KeyAction.TypeHangul('ㅌ')),
+            Key("m_b",  "ㅂ", null, KeyAction.TypeHangul('ㅂ')),
+            Key("m_h",  "ㅎ", null, KeyAction.TypeHangul('ㅎ')),
+            Key("m_u",  "ㅜ", null, KeyAction.TypeHangul('ㅜ')),
+            Key("m_o",  "ㅗ", null, KeyAction.TypeHangul('ㅗ')),
+            Key("m_eu", "ㅡ", null, KeyAction.TypeHangul('ㅡ'))
         ),
         // 행 4: EN(3) , Space(3) . 😊 ↵(1.5)
         listOf(
